@@ -63,7 +63,7 @@ class Config(ModelUtilsConfig, DatasetConfig):
     DDP: bool = False          # use DDP training
 
     loss_name: str = 'OhemCrossEntropy'
-    cls_weights: list = [1, 41]
+    cls_weights: list = [1/20, 19/20]
 
 
     optimizer_name: str = 'adamw'

@@ -5,21 +5,25 @@ from torch.optim.lr_scheduler import _LRScheduler
 from torch import nn
 from torch import Tensor
 import torch
+from semseg.models import SegFormer
 from semseg.metrics import Metrics
 # from semseg.losses import get_loss
 from semseg.losses import OhemCrossEntropy
+from semseg.losses import Dice as LossDice
 from semseg.schedulers import get_scheduler
 from semseg.optimizers import get_optimizer
 from .config import Config
-from .criteria import Criteria, Loss, MAccuracy, MIou, MF1
+from .criteria import *
 from .stas_dataset import StasDataset
 
 
 class SemsegModelUtils(BaseModelUtils):
+    model: SegFormer
     config: Config
 
     scaler: GradScaler
     loss_fn: nn.Module
+    # dice: LossDice
     scaler: GradScaler
     scheduler: _LRScheduler
 
@@ -39,9 +43,15 @@ class SemsegModelUtils(BaseModelUtils):
         # self.loss_fn = get_loss(config.loss_name, config.ignore_label, config.cls_weights)
         weight = Tensor(config.cls_weights).to(config.device)
         self.loss_fn = OhemCrossEntropy(config.ignore_label, weight)
+        # self.dice = LossDice()
         return
 
 
+    @classmethod
+    def start_new_training(cls, model: SegFormer, config: Config):
+        model.init_pretrained(config.pretrained)
+        return super().start_new_training(model, config)
+    
     @staticmethod
     def _get_optimizer(model: nn.Module, config: Config):
         return get_optimizer(
@@ -53,7 +63,7 @@ class SemsegModelUtils(BaseModelUtils):
     
     @staticmethod
     def _get_scheduler(optimizer, config: Config, state_dict: dict):
-        return get_scheduler(
+        scheduler = get_scheduler(
             config.scheduler_name,
             optimizer,
             config.max_iters,
@@ -61,6 +71,9 @@ class SemsegModelUtils(BaseModelUtils):
             config.warmup_iters,
             config.warmup_ratio,
         )
+        if state_dict is not None:
+            scheduler.load_state_dict(state_dict)
+        return scheduler
 
     def _train_epoch(self, train_dataset: StasDataset) -> Criteria:
         
@@ -92,7 +105,6 @@ class SemsegModelUtils(BaseModelUtils):
             running_loss = loss.item()
             train_loss += running_loss
 
-            running_loss /= train_dataset.config.batch_size['train']
             pbar.set_description(f"LR: {lr:.4e} Running Loss: {running_loss:.6f}")
             idx += 1
         
@@ -107,25 +119,47 @@ class SemsegModelUtils(BaseModelUtils):
         self.model.eval()
         metrics = Metrics(self.config.num_classes, self.config.ignore_label, self.config.device)
 
+        # dice_score = 0.0
+        step = 0
         for images, labels in tqdm(eval_dataset.dataloader):
+            step += 1
             images: Tensor = images.to(self.config.device)
             labels: Tensor = labels.to(self.config.device)
-            preds: Tensor = self.model(images).softmax(dim=1)
+            preds: Tensor = self.model(images)
+            preds = preds.softmax(dim=1)
+            # tem: Tensor = self.dice(preds, labels)
+            # dice_score += tem.item()
             metrics.update(preds, labels)
+        
+        # dice_score /= step
+
+        def d100(a: list, b):
+            return (a[0] / 100, a[1] / 100), b / 100
         
         ious, miou = metrics.compute_iou()
         acc, macc = metrics.compute_pixel_acc()
         f1, mf1 = metrics.compute_f1()
 
+        (bg_iou, tgt_iou), miou = d100(ious, miou)
+        (bg_acc, tgt_acc), macc = d100(acc, macc)
+        (bg_f1, tgt_f1), mf1 = d100(f1, mf1)
+
         return Criteria(
-            MIou(miou / 100),
-            MAccuracy(macc / 100),
-            MF1(mf1 / 100),
+            # Dice(dice_score),
+            TargetIou(tgt_iou),
+            BackgroundIou(bg_iou),
+            # MIou(miou),
+            TargetAccuracy(tgt_acc),
+            BackgroundAccuracy(bg_acc),
+            # MAccuracy(macc),
+            TargetF1(tgt_f1),
+            BackgroundF1(bg_f1),
+            # MF1(mf1),
         )
     
     @torch.inference_mode()
     def splash(self, test_dataset: StasDataset, out_dir: str = 'splash',
-                    num_of_output: int = None):
+                    num_of_output: int = 1):
         self.model.eval()
 
         idx = 0
