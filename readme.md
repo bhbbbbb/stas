@@ -1,3 +1,6 @@
+<a href="https://colab.research.google.com/github/bhbbbbb/stas/blob/master/stas.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"></a>
+</div>
+
 ## Installation
 
 - semantic-segmentation
