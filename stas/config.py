@@ -63,7 +63,12 @@ class Config(ModelUtilsConfig, DatasetConfig):
     DDP: bool = False          # use DDP training
 
     loss_name: str = 'OhemCrossEntropy'
-    cls_weights: list = [1/20, 19/20]
+    
+    
+    initial_cls_weights: Tuple = (1, 10)
+    cls_weights: Tuple = (1, 1)
+    loss_warmup_epochs: int = 20
+
 
 
     optimizer_name: str = 'adamw'
@@ -84,18 +89,3 @@ class Config(ModelUtilsConfig, DatasetConfig):
         return 10 * 842 // self.batch_size['train']
     warmup_ratio: float = 0.1             # warmup ratio
     
-
-    # EVAL:
-    # MODEL_PATH    : 'checkpoints/pretrained/ddrnet/ddrnet_23slim_city.pth'     # trained model file path
-    # IMAGE_SIZE    : [1024, 1024]                            # evaluation image size in (h, w)                       
-    # MSF: 
-    #     ENABLE      : false                                   # multi-scale and flip evaluation  
-    #     FLIP        : true                                    # use flip in evaluation  
-    #     SCALES      : [0.5, 0.75, 1.0, 1.25, 1.5, 1.75]       # scales used in MSF evaluation                
-
-
-    # TEST:
-    # MODEL_PATH    : 'checkpoints/pretrained/ddrnet/ddrnet_23slim_city.pth'    # trained model file path
-    # FILE          : 'assests/cityscapes'                    # filename or foldername 
-    # IMAGE_SIZE    : [1024, 1024]                            # inference image size in (h, w)
-    # OVERLAY       : true                                    # save the overlay result (image_alpha+label_alpha)

@@ -8,13 +8,12 @@ import torch
 from semseg.models import SegFormer
 from semseg.metrics import Metrics
 # from semseg.losses import get_loss
-from semseg.losses import OhemCrossEntropy
-from semseg.losses import Dice as LossDice
 from semseg.schedulers import get_scheduler
 from semseg.optimizers import get_optimizer
 from .config import Config
 from .criteria import *
 from .stas_dataset import StasDataset
+from .loss import WarmupOhemCrossEntropy
 
 
 class SemsegModelUtils(BaseModelUtils):
@@ -22,7 +21,7 @@ class SemsegModelUtils(BaseModelUtils):
     config: Config
 
     scaler: GradScaler
-    loss_fn: nn.Module
+    loss_fn: WarmupOhemCrossEntropy
     # dice: LossDice
     scaler: GradScaler
     scheduler: _LRScheduler
@@ -38,11 +37,11 @@ class SemsegModelUtils(BaseModelUtils):
         history_utils,
         logger
     ):
-        super().__init__(model, config, optimizer, scheduler, start_epoch, root, history_utils, logger)
+        super().__init__(
+            model, config, optimizer, scheduler, start_epoch, root, history_utils, logger)
         self.scaler = GradScaler(enabled=config.AMP)
         # self.loss_fn = get_loss(config.loss_name, config.ignore_label, config.cls_weights)
-        weight = Tensor(config.cls_weights).to(config.device)
-        self.loss_fn = OhemCrossEntropy(config.ignore_label, weight)
+        self.loss_fn = WarmupOhemCrossEntropy(config, start_epoch)
         # self.dice = LossDice()
         return
 
@@ -80,8 +79,9 @@ class SemsegModelUtils(BaseModelUtils):
         self.model.train()
 
         train_loss = 0.0
-        pbar = tqdm(train_dataset.dataloader)
         idx = 0
+        print(f'cls_weights = {self.loss_fn.get_weights()}')
+        pbar = tqdm(train_dataset.dataloader)
         for img, lbl in pbar:
             img: Tensor
             lbl: Tensor
@@ -108,6 +108,7 @@ class SemsegModelUtils(BaseModelUtils):
             pbar.set_description(f"LR: {lr:.4e} Running Loss: {running_loss:.6f}")
             idx += 1
         
+        self.loss_fn.step()
         train_loss /= idx
         # writer.add_scalar('train/loss', train_loss, epoch)
         torch.cuda.empty_cache()

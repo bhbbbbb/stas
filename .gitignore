@@ -9,3 +9,4 @@ test.*
 splash
 
 **/__pycache__
+do.py
