@@ -1,6 +1,6 @@
 import os
 from typing import Tuple
-from model_utils.config import ModelUtilsConfig
+from model_utils.config import ModelUtilsConfig, UNIMPLEMENTED
 from .stas_dataset import DatasetConfig
 
 class Config(ModelUtilsConfig, DatasetConfig):
@@ -39,18 +39,18 @@ class Config(ModelUtilsConfig, DatasetConfig):
 
     num_classes: int = 2
     img_size = (471, 858)
-    DATASET_ROOT: str = '../SEG_Train_Datasets'
-    IMGS_ROOT: str = os.path.join(DATASET_ROOT, 'Train_Images')
-    MASK_ROOT: str = os.path.join(DATASET_ROOT, 'Train_Masks')
-    TRAIN_SPLIT: str = os.path.join(DATASET_ROOT, 'split_train.json')
-    VALID_SPLIT: str = os.path.join(DATASET_ROOT, 'split_valid.json')
+    DATASET_ROOT: str = UNIMPLEMENTED
+    IMGS_ROOT: str = UNIMPLEMENTED
+    MASK_ROOT: str = UNIMPLEMENTED
+    TRAIN_SPLIT: str = UNIMPLEMENTED
+    VALID_SPLIT: str = UNIMPLEMENTED
 
     batch_size = {
         'train': 4,
         'val': 4,
     }
 
-    num_workers: int = 4
+    num_workers: int = 4 if os.name == 'nt' else 2
     drop_last: bool = True
     pin_memory: bool = True
 

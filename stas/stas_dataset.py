@@ -1,6 +1,6 @@
 import os
 import json
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Literal
 
 import torch 
 from torch import Tensor
@@ -45,7 +45,13 @@ class DatasetConfig(BaseConfig):
 
 class StasDataset(Dataset):
     
-    def __init__(self, config: DatasetConfig, split: str = 'train', transform = None) -> None:
+    def __init__(
+        self,
+        config: DatasetConfig,
+        split: Literal['train', 'val', 'inference'] = 'train',
+        transform = None,
+    ):
+
         super().__init__()
         assert split in ['train', 'val', 'inference']
         self.mode = split

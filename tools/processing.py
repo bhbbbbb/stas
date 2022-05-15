@@ -1,10 +1,11 @@
+# pylint: disable=all
 import os
 import json
 
 import numpy as np
 import cv2
-from PIL import Image
-from torchvision.transforms import functional as TF
+# from PIL import Image
+# from torchvision.transforms import functional as TF
 from sklearn.model_selection import train_test_split
 
 DATASET_ROOT = '../SEG_Train_Datasets'
@@ -32,10 +33,10 @@ def make_split(train_ratio: float):
     file_set = os.listdir(ANNO_PATH)
     file_set = [(os.path.splitext(file)[0]) for file in file_set]
     train_set, valid_set = train_test_split(file_set, train_size=train_ratio, random_state=SEED)
-    def output_splited_set(set: list, name: str):
+    def output_splited_set(splited_set: list, name: str):
         file = os.path.join(DATASET_ROOT, name + '.json')
         with open(file, 'w', encoding='utf-8') as fout:
-            json.dump(set, fout, indent=4)
+            json.dump(splited_set, fout, indent=4)
         # with open(file, 'w', encoding='utf-8') as fout:
         #     for a_name in set:
         #         fout.write(a_name)
@@ -51,23 +52,6 @@ def load_train_split():
     train_set = [os.path.join(TRAIN_PATH, img_name) for img_name in train_set]
     return train_set
 
-def resize():
-    train_set = load_train_split()
-    print(train_set[0])
-    return
-    img = Image.open(train_set[0]).convert('RGB')
-
-    size = img.size
-    size = size[0] // 2, size[1] // 2
-    size = list(reversed(size))
-    print(size)
-    img_: Image.Image = TF.resize(img, size, interpolation=TF.InterpolationMode.BICUBIC)
-    img_.save("test.jpg")
-
-
-
-    
 
 if __name__ == "__main__":
     make_split(0.8)
-    resize()

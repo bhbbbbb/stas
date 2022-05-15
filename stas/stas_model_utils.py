@@ -25,7 +25,7 @@ from .stas_dataset import StasDataset
 from .loss import WarmupOhemCrossEntropy
 
 
-class SemsegModelUtils(BaseModelUtils):
+class StasModelUtils(BaseModelUtils):
     model: SegFormer
     config: Config
 
