@@ -1,6 +1,10 @@
 import os
 import json
-from typing import Tuple, Dict, Literal
+from typing import Tuple, Dict
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
 
 import torch 
 from torch import Tensor
