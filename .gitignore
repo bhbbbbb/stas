@@ -3,6 +3,7 @@
 *.csv
 *.egg-info
 
+**/.vscode
 
 test.*
 
@@ -10,3 +11,5 @@ splash
 
 **/__pycache__
 do.py
+
+*.config.*.py

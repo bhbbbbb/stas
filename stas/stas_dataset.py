@@ -1,15 +1,13 @@
 import os
 import json
-from pathlib import Path
 from typing import Tuple, Dict
-from torch.utils.data import Dataset, DataLoader
-from semseg.augmentations import get_train_augmentation, get_val_augmentation
+
 import torch 
-import numpy as np
 from torch import Tensor
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 from torchvision import io
 from torchvision.transforms import functional as TF
+from semseg.augmentations import get_train_augmentation, get_val_augmentation
 from model_utils.base import BaseConfig
 from tqdm import tqdm
 
@@ -60,9 +58,10 @@ class StasDataset(Dataset):
             else:
                 self.transform = get_val_augmentation(config.val_size)
 
-        self.names, self.files, self.masks = config.get_files('train' if split == 'train' else 'val')
+        self.names, self.files, self.masks =\
+            config.get_files('train' if split == 'train' else 'val')
     
-        print(f"Found {len(self.files)} {split} images.")
+        print(f'Found {len(self.files)} {split} images.')
         return
 
     def __len__(self) -> int:
@@ -95,10 +94,9 @@ class StasDataset(Dataset):
             pin_memory=self.config.pin_memory,
         )
 
-    def encode(self, label: Tensor) -> Tensor:
-        c, h, w = label.shape
-        assert c == 1
-        return label.view(h, w).long()
+    @staticmethod
+    def encode(label: Tensor) -> Tensor:
+        return label.squeeze().long()
         # label = self.label_map[label]
         # return torch.from_numpy(label)
 
@@ -110,7 +108,11 @@ class StasDataset(Dataset):
         os.makedirs(output_dir, exist_ok=True)
         for filename, label in zip(filenames, labels):
             label = label.view(1, h, w)
-            label = TF.resize(label, self.config.val_size, interpolation=TF.InterpolationMode.NEAREST)
+            label = TF.resize(
+                label,
+                self.config.val_size,
+                interpolation=TF.InterpolationMode.NEAREST
+            )
             filename += '.png'
             filename = os.path.join(output_dir, filename)
             io.write_png(label, filename)

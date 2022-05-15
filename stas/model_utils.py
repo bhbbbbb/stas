@@ -11,7 +11,16 @@ from semseg.metrics import Metrics
 from semseg.schedulers import get_scheduler
 from semseg.optimizers import get_optimizer
 from .config import Config
-from .criteria import *
+from .criteria import (
+    Loss,
+    TargetF1,
+    TargetAccuracy,
+    TargetIou,
+    BackgroundF1,
+    BackgroundAccuracy,
+    BackgroundIou,
+    Criteria,
+)
 from .stas_dataset import StasDataset
 from .loss import WarmupOhemCrossEntropy
 
@@ -105,7 +114,7 @@ class SemsegModelUtils(BaseModelUtils):
             running_loss = loss.item()
             train_loss += running_loss
 
-            pbar.set_description(f"LR: {lr:.4e} Running Loss: {running_loss:.6f}")
+            pbar.set_description(f'LR: {lr:.4e} Running Loss: {running_loss:.6f}')
             idx += 1
         
         self.loss_fn.step()
@@ -174,4 +183,3 @@ class SemsegModelUtils(BaseModelUtils):
             idx += 1
             if idx == num_of_output:
                 return
-
