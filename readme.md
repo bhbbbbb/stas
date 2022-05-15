@@ -29,6 +29,17 @@ pip install git+https://github.com/bhbbbbb/stas
 - download [pretrained weights](https://drive.google.com/drive/folders/1b7bwrInTW4VLEm27YawHOAMSMikga2Ia)
 
 
+## How to
+
+### Preprocessing
+
+- split dataset and make masks (may need to set `DATASET_ROOT` in `tools/preprocessing.py` manually)
+
+```sh
+python tools/processing.py
+```
+
+- or use `tools.preprocessing.make_mask`
 
 ## Dependency
 
