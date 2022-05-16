@@ -42,7 +42,6 @@ def main():
 
     """display configurations to console"""
     config.display()
-    return
 
     train_set = StasDataset(config, 'train')
     valid_set = StasDataset(config, 'val')
@@ -50,10 +49,10 @@ def main():
     model = SegFormer(config.backbone, config.num_classes)
 
     """start new training"""
-    # utils = StasModelUtils.start_new_training(model, config)
+    utils = StasModelUtils.start_new_training(model, config)
 
     """load from last checkpoint"""
-    utils = StasModelUtils.load_last_checkpoint(model, config)
+    # utils = StasModelUtils.load_last_checkpoint(model, config)
 
     """or load from particular checkpoint"""
     # path = 'D:\\Documents\\PROgram\\ML\\kaggle\\stas-seg\\src\\log\\20220516T00-37-26\\20220516T08-57-33_epoch_118'
