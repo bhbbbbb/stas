@@ -33,13 +33,21 @@ class Config(ModelUtilsConfig, DatasetConfig):
 
 
     device = 'cuda:0'
-    backbone: str = 'MiT-B0'
-    pretrained: str = 'pretrained/MiT-B0'              # backbone model's weight 
+    variant: int = 0
+
+    @property
+    def backbone(self):
+        return f'MiT-B{self.variant}'
+    
+    pretrained: str = UNIMPLEMENTED # backbone model's weight 
     ignore_label: int = -1
 
 
     num_classes: int = 2
     img_size = (471, 858)
+    val_size: Tuple = (942, 1716)
+    inf_size: Tuple = (942, 1716)
+
     DATASET_ROOT: str = UNIMPLEMENTED
     IMGS_ROOT: str = UNIMPLEMENTED
     MASK_ROOT: str = UNIMPLEMENTED

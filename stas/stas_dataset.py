@@ -23,8 +23,9 @@ class M:
 
 class DatasetConfig(BaseConfig):
     num_classes: int
-    img_size: Tuple = (471, 858)
-    val_size: Tuple = (942, 1716)
+    img_size: Tuple
+    val_size: Tuple
+    inf_size: Tuple
     IMGS_ROOT: str
     MASK_ROOT: str
     TRAIN_SPLIT: str
@@ -73,7 +74,10 @@ class StasDataset(Dataset):
             if split == M.TRAIN:
                 self.transform = get_train_augmentation(config.img_size)
             else:
-                self.transform = get_val_augmentation(config.val_size)
+                self.transform = get_val_augmentation(
+                    config.val_size if split == M.VALID else config.inf_size
+                    # config.val_size
+                )
 
         if test_dir is not None:
             assert self.mode == M.INFER
@@ -141,7 +145,7 @@ class StasDataset(Dataset):
             label = label.view(1, h, w)
             label = TF.resize(
                 label,
-                self.config.val_size,
+                self.config.inf_size,
                 interpolation=TF.InterpolationMode.NEAREST
             )
             filename += '.png'
