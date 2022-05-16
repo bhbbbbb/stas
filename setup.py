@@ -7,7 +7,7 @@ setup(
     license="MIT",
     description="stas",
     install_requires=[
-        "pytorch-model-utils @ git+https://github.com/bhbbbbb/pytorch-model-utils@v0.1.4",
+        "pytorch-model-utils @ git+https://github.com/bhbbbbb/pytorch-model-utils",
         "semseg",
     ],
 )
