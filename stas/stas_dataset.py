@@ -15,6 +15,12 @@ from semseg.augmentations import get_train_augmentation, get_val_augmentation
 from model_utils.base import BaseConfig
 from tqdm import tqdm
 
+class M:
+    """enum"""
+    INFER = 'inference'
+    TRAIN = 'train'
+    VALID = 'val'
+
 class DatasetConfig(BaseConfig):
     num_classes: int
     img_size: Tuple = (471, 858)
@@ -33,7 +39,7 @@ class DatasetConfig(BaseConfig):
         return self.num_workers > 0 and os.name == 'nt'
 
     def get_files(self, mode: str):
-        assert mode in ['train', 'val']
+        assert mode in [M.TRAIN, M.VALID]
 
         def do(split_path: str):
             with open(split_path, 'r', encoding='utf-8') as fin:
@@ -41,7 +47,7 @@ class DatasetConfig(BaseConfig):
                 imgs = [os.path.join(self.IMGS_ROOT, name + '.jpg') for name in names]
                 masks = [os.path.join(self.MASK_ROOT, name + '.png') for name in names]
             return names, imgs, masks
-        if mode == 'train':
+        if mode == M.TRAIN:
             return do(self.TRAIN_SPLIT)
         
         return do(self.VALID_SPLIT)
@@ -52,24 +58,34 @@ class StasDataset(Dataset):
     def __init__(
         self,
         config: DatasetConfig,
-        split: Literal['train', 'val', 'inference'] = 'train',
+        split: Literal['train', 'val', 'inference'] = M.TRAIN,
         transform = None,
+        test_dir: str = None,
     ):
 
         super().__init__()
-        assert split in ['train', 'val', 'inference']
+        assert split in [M.TRAIN, M.VALID, M.INFER]
         self.mode = split
         self.config = config
         self.transform = transform
         
         if transform is None:
-            if split == 'train':
+            if split == M.TRAIN:
                 self.transform = get_train_augmentation(config.img_size)
             else:
                 self.transform = get_val_augmentation(config.val_size)
 
-        self.names, self.files, self.masks =\
-            config.get_files('train' if split == 'train' else 'val')
+        if test_dir is not None:
+            assert self.mode == M.INFER
+            assert os.path.isdir(test_dir)
+            filenames = os.listdir(test_dir)
+            self.names = [os.path.splitext(filename)[0] for filename in filenames]
+            self.files = [os.path.join(test_dir, filename) for filename in filenames]
+            self.masks = None
+
+        else:
+            self.names, self.files, self.masks =\
+                config.get_files(M.TRAIN if split == M.TRAIN else M.VALID)
     
         print(f'Found {len(self.files)} {split} images.')
         return
@@ -78,26 +94,31 @@ class StasDataset(Dataset):
         return len(self.files)
     
     def __getitem__(self, index: int) -> Tuple[Tensor, Tensor]:
-        img_path, mask_path = self.files[index], self.masks[index]
-
+        img_path = self.files[index]
         image = io.read_image(img_path)
-        label = io.read_image(mask_path)
+
+        if self.mode == M.INFER:
+            _, h, w = image.shape
+            label = torch.zeros([1, h, w]) # dummy mask
+        else:
+            mask_path = self.masks[index]
+            label = io.read_image(mask_path)
         
         if self.transform:
             image, label = self.transform(image, label)
         
-        if self.mode == 'inference':
-            return image, self.encode(label), self.names[index]
+        if self.mode == M.INFER:
+            return image, self.names[index]
         return image, self.encode(label)
         # return image, self.encode(label.squeeze().numpy()).long()
 
     @property
     def dataloader(self):
-        batch_size = self.config.batch_size['train' if self.mode == 'train' else 'val']
+        batch_size = self.config.batch_size[M.TRAIN if self.mode == M.TRAIN else M.VALID]
         return DataLoader(
             self,
             batch_size=batch_size,
-            shuffle=(self.mode == 'train'),
+            shuffle=(self.mode == M.TRAIN),
             num_workers=min(self.config.num_workers, batch_size),
             persistent_workers=self.config.persistent_workers,
             drop_last=self.config.drop_last,

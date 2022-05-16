@@ -173,9 +173,8 @@ class StasModelUtils(BaseModelUtils):
         self.model.eval()
 
         idx = 0
-        for images, labels, names in tqdm(test_dataset.dataloader):
+        for images, names in tqdm(test_dataset.dataloader):
             images: Tensor = images.to(self.config.device)
-            labels: Tensor = labels.to(self.config.device)
             preds: Tensor = self.model(images).softmax(dim=1)
             preds = preds.argmax(dim=1).cpu().to(torch.uint8)
 
