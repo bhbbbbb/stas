@@ -1,7 +1,7 @@
 import os
 from typing import Tuple
 from model_utils.config import ModelUtilsConfig, UNIMPLEMENTED
-# from model_utils.base.config import register_checking_hook
+from model_utils.base.config import register_checking_hook
 from .stas_dataset import DatasetConfig
 
 class Config(ModelUtilsConfig, DatasetConfig):
@@ -40,6 +40,13 @@ class Config(ModelUtilsConfig, DatasetConfig):
         return f'MiT-B{self.variant}'
     
     pretrained: str = UNIMPLEMENTED # backbone model's weight 
+
+    @register_checking_hook
+    def pretrained_check(self):
+        if not os.path.isfile(self.pretrained):
+            print(f'{self.pretrained} is not a valid file.')
+        return
+
     ignore_label: int = -1
 
 
