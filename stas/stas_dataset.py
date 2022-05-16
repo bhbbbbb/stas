@@ -23,7 +23,7 @@ class M:
 
 class DatasetConfig(BaseConfig):
     num_classes: int
-    img_size: Tuple
+    train_size: Tuple
     val_size: Tuple
     inf_size: Tuple
     IMGS_ROOT: str
@@ -72,7 +72,7 @@ class StasDataset(Dataset):
         
         if transform is None:
             if split == M.TRAIN:
-                self.transform = get_train_augmentation(config.img_size)
+                self.transform = get_train_augmentation(config.train_size)
             else:
                 self.transform = get_val_augmentation(
                     config.val_size if split == M.VALID else config.inf_size

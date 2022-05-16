@@ -51,7 +51,7 @@ class Config(ModelUtilsConfig, DatasetConfig):
 
 
     num_classes: int = 2
-    img_size = (471, 858)
+    train_size = (471, 858)
     val_size: Tuple = (942, 1716)
     inf_size: Tuple = (942, 1716)
 
