@@ -1,6 +1,7 @@
 import os
 from typing import Tuple
 from model_utils.config import ModelUtilsConfig, UNIMPLEMENTED
+# from model_utils.base.config import register_checking_hook
 from .stas_dataset import DatasetConfig
 
 class Config(ModelUtilsConfig, DatasetConfig):
@@ -65,14 +66,14 @@ class Config(ModelUtilsConfig, DatasetConfig):
     loss_name: str = 'OhemCrossEntropy'
     
     
-    initial_cls_weights: Tuple = (1, 10)
-    cls_weights: Tuple = (1, 1)
-    loss_warmup_epochs: int = 20
+    initial_cls_weights: Tuple = (1, 5)
+    cls_weights: Tuple = (1, 2)
+    loss_warmup_epochs: int = 5
 
 
 
     optimizer_name: str = 'adamw'
-    learning_rate: float = 0.001
+    learning_rate: float = 0.0001
     weight_decay: float = 0.01
 
 
