@@ -24,7 +24,7 @@ class Config(StasConfig):
     VALID_SPLIT: str = os.path.join(DATASET_ROOT, 'split_valid.json')
 
     log_dir = 'D:\\Documents\\PROgram\\ML\\kaggle\\stas-seg\\src\\log'
-    pretrained = os.path.join('..', 'pretrained_models', 'mit_b0.pth')
+    pretrained = os.path.join(__file__, '..', '..', 'pretrained_models', 'mit_b0.pth')
 
 def main():
     """for debuging, not necessary"""
