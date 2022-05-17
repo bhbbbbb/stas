@@ -31,9 +31,10 @@ def inference(
     return
 
 def inference_by_valid(
-    config: Config, utils: StasModelUtils, num_output: int = None
+    config: Config, utils: StasModelUtils, num_output: int = None, out_dir: str = None
 ):
-    outdir = os.path.join(utils.root, f'splash_{utils.start_epoch}')
+    if out_dir is None:
+        out_dir = os.path.join(utils.root, f'splash_{utils.start_epoch}')
     num_output = num_output or 5
-    _inference(config, utils, test_dir=None, num_output=num_output, outdir=outdir)
+    _inference(config, utils, test_dir=None, num_output=num_output, outdir=out_dir)
     return
