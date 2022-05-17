@@ -21,10 +21,12 @@ def _inference(
     return
 
 def inference(
-    config: Config, utils: StasModelUtils, test_dir: str, num_output: int = None
+    config: Config, utils: StasModelUtils, test_dir: str, num_output: int = None,
+    out_dir: str = None
 ):
     output_dirname = os.path.basename(test_dir) + '_inf'
-    outdir = os.path.join(test_dir, '..', output_dirname)
+    if out_dir is None:
+        outdir = os.path.join(test_dir, '..', output_dirname)
     _inference(config, utils, test_dir=test_dir, num_output=num_output, outdir=outdir)
     return
 

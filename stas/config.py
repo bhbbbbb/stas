@@ -51,9 +51,12 @@ class Config(ModelUtilsConfig, DatasetConfig):
 
 
     num_classes: int = 2
+    
+    ######################
     train_size = (471, 858)
     val_size: Tuple = (942, 1716)
     inf_size: Tuple = (942, 1716)
+    ######################
 
     DATASET_ROOT: str = UNIMPLEMENTED
     IMGS_ROOT: str = UNIMPLEMENTED
@@ -81,9 +84,11 @@ class Config(ModelUtilsConfig, DatasetConfig):
     loss_name: str = 'OhemCrossEntropy'
     
     
+    #######################
     initial_cls_weights: Tuple = (1, 5)
     cls_weights: Tuple = (1, 2)
     loss_warmup_epochs: int = 5
+    #######################
 
 
 
