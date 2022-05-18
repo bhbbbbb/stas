@@ -125,7 +125,7 @@ class StasDataset(Dataset):
             shuffle=(self.mode == M.TRAIN),
             num_workers=min(self.config.num_workers, batch_size),
             persistent_workers=self.config.persistent_workers,
-            drop_last=self.config.drop_last,
+            drop_last=(self.mode != M.INFER),
             pin_memory=self.config.pin_memory,
         )
 
