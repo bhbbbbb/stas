@@ -5,6 +5,10 @@ from torch import Tensor
 from torchvision.transforms import functional as TF
 import numpy as np
 
+class C:
+    WHITE = 255
+    BLACK = 0
+
 
 class Pos(NamedTuple):
     x: int
@@ -47,13 +51,13 @@ NOT_FOUND_WHITE_SPOT = Spot(1, 0, Pos(-1, -1))
 class BFS:
     spots: List[Spot]
     mask: np.ndarray
+    MIN_WTHIE_FILL_THRESHOLD: int = 200
 
     def __init__(self, mask: Union[np.ndarray, Tensor]):
         if isinstance(mask, Tensor):
             mask = mask.numpy()
         self.mask = mask.squeeze(axis=0)
         self.found = np.zeros_like(self.mask, dtype=bool)
-        self.spots = []
         return
     
     @classmethod
@@ -76,17 +80,56 @@ class BFS:
         smallest_spot.size *= down_scale_factor ** 2
         return smallest_spot
     
+
+    @property
+    def black_fill_threshold(self):
+        h, w = self.mask.shape[-2:]
+        return h * w // 10
+
+    def fill_noise(self, white_threshold: int, print_spots: bool = False):
+        self._fill_noise(C.BLACK, self.black_fill_threshold, print_spots)
+        self._fill_noise(C.WHITE, max(self.MIN_WTHIE_FILL_THRESHOLD, white_threshold), print_spots)
+        return self.mask
+
+    def _fill_noise(self, noise_color: int, threshold: int, print_spots: bool = False):
+        h, w = self.mask.shape[-2:]
+        spots: List[Spot] = []
+        spots_masks: List[np.ndarray] = []
+        for i in range(h):
+            for j in range(w):
+                pos = Pos(i, j)
+                if not self.found[pos]:
+                    found_saved = np.copy(self.found)
+                    spot = self.bfs(pos)
+                    if spot.color == noise_color:
+                        if print_spots:
+                            print(spot)
+                        spots.append(spot)
+                        spots_masks.append(found_saved ^ self.found)
+        
+        color_to_fill = C.WHITE if noise_color == C.BLACK else C.BLACK
+        if noise_color == C.BLACK:
+            self.found = np.zeros_like(self.mask, dtype=bool) ## reinit found
+        for spot_mask, spot in zip(spots_masks, spots):
+            if spot.size < threshold:
+                self.mask[spot_mask] = color_to_fill
+            elif noise_color == C.BLACK:
+                self.found[spot_mask] = True
+        return self.mask
+    
     def start_bfs(self):
         h, w = self.mask.shape[-2:]
+        spots: List[Spot] = []
         for i in range(h):
             for j in range(w):
                 pos = Pos(i, j)
                 if not self.found[pos]:
                     spot = self.bfs(pos)
-                    self.spots.append(spot)
-        # for spot in self.spots:
+                    spots.append(spot)
+        # for spot in spots:
         #     print(spot)
-        return self.spots
+        return spots
+
 
     def is_pos_valid(self, pos: Pos):
         return (
