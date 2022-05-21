@@ -29,6 +29,7 @@ class Config(ModelUtilsConfig, DatasetConfig):
     early_stopping_threshold: int = 100
     """Threshold for early stopping mode. Only matter when EARLY_STOPPING is set to True."""
 
+    show_progress_bar: bool = True
     save_best = False
 
 

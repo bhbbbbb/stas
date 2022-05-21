@@ -90,7 +90,7 @@ class StasModelUtils(BaseModelUtils):
         train_loss = 0.0
         idx = 0
         print(f'cls_weights = {self.loss_fn.get_weights()}')
-        pbar = tqdm(train_dataset.dataloader)
+        pbar = tqdm(train_dataset.dataloader, disable=(not self.config.show_progress_bar))
         for img, lbl in pbar:
             img: Tensor
             lbl: Tensor
@@ -131,7 +131,8 @@ class StasModelUtils(BaseModelUtils):
 
         # dice_score = 0.0
         step = 0
-        for images, labels in tqdm(eval_dataset.dataloader):
+        pbar = tqdm(eval_dataset.dataloader, disable=(not self.config.show_progress_bar))
+        for images, labels in pbar:
             step += 1
             images: Tensor = images.to(self.config.device)
             labels: Tensor = labels.to(self.config.device)
@@ -173,7 +174,8 @@ class StasModelUtils(BaseModelUtils):
         self.model.eval()
 
         idx = 0
-        for images, names in tqdm(test_dataset.dataloader):
+        pbar = tqdm(test_dataset.dataloader, disable=(not self.config.show_progress_bar))
+        for images, names in pbar:
             images: Tensor = images.to(self.config.device)
             preds: Tensor = self.model(images).softmax(dim=1)
             preds = preds.argmax(dim=1).cpu().to(torch.uint8)
