@@ -1,3 +1,4 @@
+from multiprocessing import Process
 from argparse import Namespace
 from typing import Tuple, NamedTuple, List, Union
 from collections import deque
@@ -30,23 +31,101 @@ class Pos(NamedTuple):
         return [self.down(), self.right(), self.up(), self.left()]
 
 
+class Bound:
+    e: Pos
+    w: Pos
+    s: Pos
+    n: Pos
+    def __init__(self, start_pos: Pos):
+        # self.e = Pos(*start_pos)
+        # self.w = Pos(*start_pos)
+        # self.s = Pos(*start_pos)
+        # self.n = Pos(*start_pos)
+        self.e = start_pos
+        self.w = start_pos
+        self.s = start_pos
+        self.n = start_pos
+        return
+    
+    def update(self, pos: Pos):
+        if pos.y > self.e.y:
+            self.e = pos
+            return
+        if pos.x > self.s.x:
+            self.s = pos
+            return
+        if pos.y < self.w.y:
+            self.w = pos
+            return
+        if pos.x < self.n.x:
+            self.n = pos
+            return
+        return
+    
+    @property
+    def origin_x(self):
+        return self.n.x
+
+    @property
+    def origin_y(self):
+        return self.w.y
+        
+    @property
+    def height(self):
+        return self.s.x - self.n.x
+        
+    @property
+    def width(self):
+        return self.e.y - self.w.y
+
 class Spot(Namespace):
     color: int
     size: int
     start_pos: Tuple[int, int]
+    bound: Union[Bound, None]
+
     def __init__(
         self,
         color: int,
         size: int,
         start_pos: Tuple[int, int],
+        bound: Union[Bound, None] = None,
     ):
         super().__init__()
         self.color = color
         self.size = size
         self.start_pos = start_pos
+        self.bound = bound
         return
+    
+    def get_dict(self):
+        assert self.color == C.WHITE
+        assert self.bound is not None
+        return {
+            'size': self.size,
+            'x': self.bound.origin_x,
+            'y': self.bound.origin_y,
+            'height': self.bound.height,
+            'width': self.bound.width,
+        }
 
 NOT_FOUND_WHITE_SPOT = Spot(1, 0, Pos(-1, -1))
+
+class ParallelBFS:
+    def __init__(self, masks: Union[np.ndarray, Tensor]):
+
+        self.bfses = [BFS(mask) for mask in masks]
+        return
+    
+    def do(self, func, args: Tuple):
+        func_name = getattr(func, '__name__')
+        p_list = [Process(target=getattr(bfs, func_name), args=args) for bfs in self.bfses]
+        for p in p_list:
+            p.start()
+        for p in p_list:
+            p.join()
+        return
+    
 
 class BFS:
     spots: List[Spot]
@@ -117,6 +196,51 @@ class BFS:
                 self.found[spot_mask] = True
         return self.mask
     
+    def get_rois(
+        self,
+        max_edge_len: int,
+        fill_white: bool = False,
+        require_roi_spot_mask: bool = False,
+    ):
+        h, w = self.mask.shape
+        self._fill_noise(C.BLACK, self.black_fill_threshold, False)
+        
+        roi_spots: List[dict] = []
+        if fill_white:
+            to_fill_spot_masks: List[np.ndarray] = []
+        if require_roi_spot_mask:
+            roi_spot_masks: List[np.ndarray] = []
+        for i in range(h):
+            for j in range(w):
+                pos = Pos(i, j)
+                if not self.found[pos]:
+                    if fill_white or require_roi_spot_mask:
+                        found_saved = np.copy(self.found)
+                    spot = self.bfs_find_bound(pos)
+                    if (
+                        spot.size > self.MIN_WTHIE_FILL_THRESHOLD
+                        and spot.bound.width < max_edge_len
+                        and spot.bound.height < max_edge_len
+                    ):
+                        roi_spots.append(spot.get_dict())
+                        if require_roi_spot_mask:
+                            roi_spot_masks.append(found_saved ^ self.found)
+                    
+                    elif fill_white and spot.size < self.MIN_WTHIE_FILL_THRESHOLD:
+                        to_fill_spot_masks.append(found_saved ^ self.found)
+
+        if fill_white:
+            for spot_mask in to_fill_spot_masks:
+                self.mask[spot_mask] = C.BLACK
+        if require_roi_spot_mask:
+            return roi_spots, roi_spot_masks
+        return roi_spots
+    
+    def fill_black(self, fill_masks: List[np.ndarray]):
+        for spot_mask in fill_masks:
+            self.mask[spot_mask] = C.BLACK
+        return self.mask
+
     def start_bfs(self):
         h, w = self.mask.shape[-2:]
         spots: List[Spot] = []
@@ -162,4 +286,28 @@ class BFS:
                 queue.append(adj)
         
         return Spot(color, size, pos)
+
+    def bfs_find_bound(self, pos: Pos):
+
+        size = 1
+        color = self.mask[pos]
+
+        queue = deque()
+        self.found[pos] = True
+        queue.append(pos)
+
+        bound = Bound(pos)
+
+        while queue:
+            p = queue.popleft()
+
+            for adj in self.get_adj_list(p):
+                if self.found[adj] or color != self.mask[adj]:
+                    continue
+                self.found[adj] = True
+                bound.update(adj)
+                size += 1
+                queue.append(adj)
         
+        return Spot(color, size, pos, bound)
+    

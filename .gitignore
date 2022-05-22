@@ -13,3 +13,5 @@ splash
 do.py
 
 *.config.*.py
+
+rois*
