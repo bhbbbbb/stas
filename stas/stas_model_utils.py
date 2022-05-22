@@ -1,15 +1,20 @@
+import os
+import json
+import numpy as np
 from tqdm import tqdm
 from model_utils import BaseModelUtils
 from torch.cuda.amp import GradScaler, autocast
 from torch.optim.lr_scheduler import _LRScheduler
 from torch import nn
 from torch import Tensor
+from torchvision.transforms import functional as TF
 import torch
 from semseg.models import SegFormer
 from semseg.metrics import Metrics
 # from semseg.losses import get_loss
 from semseg.schedulers import get_scheduler
 from semseg.optimizers import get_optimizer
+from spot_size_est.bfs import BFS
 from .config import Config
 from .criteria import (
     Loss,
@@ -169,8 +174,12 @@ class StasModelUtils(BaseModelUtils):
         )
     
     @torch.inference_mode()
-    def splash(self, test_dataset: StasDataset, out_dir: str = 'splash',
-                    num_of_output: int = 1):
+    def splash(
+        self,
+        test_dataset: StasDataset,
+        out_dir: str = 'splash',
+        num_of_output: int = 1
+    ):
         self.model.eval()
 
         idx = 0
@@ -178,9 +187,52 @@ class StasModelUtils(BaseModelUtils):
         for images, names in pbar:
             images: Tensor = images.to(self.config.device)
             preds: Tensor = self.model(images).softmax(dim=1)
-            preds = preds.argmax(dim=1).cpu().to(torch.uint8)
+            # preds = preds.argmax(dim=1).cpu().to(torch.uint8)
+            preds = (preds[:, 1] > self.config.positive_threshold).cpu().to(torch.uint8)
 
             test_dataset.splash_to_file(preds, names, out_dir)
             idx += 1
             if idx == num_of_output:
                 return
+
+    @torch.inference_mode()
+    def generate_rois(self):
+        self.model.eval()
+
+        inf_set = StasDataset(self.config, 'inference', test_dir=self.config.IMGS_ROOT)
+        # inf_set.files = [inf_set.files[142]]
+        # inf_set.names = [inf_set.names[142]]
+        rois: np.ndarray = np.empty([len(inf_set)], dtype=list)
+        print('len of rios', len(rois))
+        OUT_DIR = 'rois'
+        os.makedirs(OUT_DIR, exist_ok=True)
+
+
+        pbar = tqdm(inf_set.dataloader, disable=(not self.config.show_progress_bar))
+        for images, names in pbar:
+            name = names[0]
+            images: Tensor = images.to(self.config.device)
+            preds: Tensor = self.model(images).softmax(dim=1)
+            # preds = preds.argmax(dim=1).cpu().to(torch.uint8)
+            preds = (preds[:, 1] > self.config.positive_threshold).to(torch.uint8)
+            preds *= 255
+            preds = TF.resize(
+                preds,
+                self.config.inf_size,
+                interpolation=TF.InterpolationMode.NEAREST
+            )
+            preds = preds.cpu()
+            bfs = BFS(preds)
+            tem = bfs.get_rois(self.config.max_roi_edge_len)
+            with open(os.path.join(OUT_DIR, name + '.json'), 'w', encoding='utf-8') as fout:
+                json.dump(tem, fout, indent=4)
+
+            rois[int(name)] = tem
+        
+        rois = rois.tolist()
+        with open('rois.json', 'w', encoding='utf-8') as fout:
+            json.dump(rois, fout, indent=4)
+        return
+
+
+                

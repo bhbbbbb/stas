@@ -83,6 +83,8 @@ class Config(ModelUtilsConfig, DatasetConfig):
     DDP: bool = False          # use DDP training
 
     loss_name: str = 'OhemCrossEntropy'
+
+    positive_threshold: float = 0.5
     
     
     #######################
@@ -110,4 +112,6 @@ class Config(ModelUtilsConfig, DatasetConfig):
     def warmup_iters(self):
         return 10 * 842 // self.batch_size['train']
     warmup_ratio: float = 0.1             # warmup ratio
+
+    max_roi_edge_len: int = 192
     
