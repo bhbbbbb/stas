@@ -49,9 +49,9 @@ Recall = Criteria.register_criterion(
     primary=False,
 )(BaseAcc)
 
-F1Score = Criteria.register_criterion(
-    short_name="nf_f1",
-    full_name="F1",
+FScore = Criteria.register_criterion(
+    short_name="nf_f_beta",
+    full_name="F_beta",
     plot=False,
     primary=True,
 )(BaseAcc)
@@ -183,7 +183,7 @@ class NfnetModelUtils(BaseModelUtils):
         eval_loss = 0.0
         fp_val = 0.0
         step = 0
-        metrics = Metrics(0)
+        metrics = Metrics(0, beta=self.config.f_score_beta)
 
         for inputs, num_white in tqdm(eval_dataset.dataloader):
             step += 1
@@ -210,7 +210,7 @@ class NfnetModelUtils(BaseModelUtils):
             Accuracy(eval_acc),
             Precision(metrics.precision),
             Recall(metrics.recall),
-            F1Score(metrics.f1),
+            FScore(metrics.f_beta),
             FPVal(fp_val),
         )
 

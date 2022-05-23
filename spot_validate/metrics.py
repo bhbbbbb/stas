@@ -1,9 +1,10 @@
 from torch import Tensor
 
 class Metrics:
-    def __init__(self, true_label: int) -> None:
+    def __init__(self, true_label: int, beta: float = 1) -> None:
         self.true_label = true_label
         self.false_label = int(not true_label)
+        self.beta = beta
         self.tp = 0
         self.tn = 0
         self.fp = 0
@@ -20,18 +21,6 @@ class Metrics:
         self.fn += (pred[:, self.false_label] * (target == self.true_label)).sum().item()
         return
 
-    def compute(self):
-        """Compute precision recall and f1
-
-        Returns:
-            prescision, recall, f1
-        """
-        precision = self.tp / (self.tp + self.fp)
-        recall = self.tp / (self.tp + self.fn)
-        # f1 = 2 * (precision * recall) / (precision + recall)
-        f1 = self.tp / (self.tp + 0.5 * (self.fp + self.fn))
-        return precision, recall, f1
-
     @property
     def precision(self):
         return self.tp / (self.tp + self.fp)
@@ -41,8 +30,11 @@ class Metrics:
         return self.tp / (self.tp + self.fn)
 
     @property
-    def f1(self):
-        return self.tp / (self.tp + 0.5 * (self.fp + self.fn))
+    def f_beta(self):
+        # https://en.wikipedia.org/wiki/F-score
+        tp_ = (1 + self.beta ** 2) * self.tp
+        fn_ = (self.beta ** 2) * self.fn
+        return tp_ / (tp_ + fn_ + self.fp)
 
     # def compute_iou(self) -> Tuple[Tensor, Tensor]:
     #     ious = self.hist.diag() / (self.hist.sum(0) + self.hist.sum(1) - self.hist.diag())

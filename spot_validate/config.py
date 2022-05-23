@@ -50,6 +50,10 @@ class NfnetConfig(ModelUtilsConfig):
 
     device = 'cuda:0'
 
+    f_score_beta: float = 0.5
+    # 0.5: importance of precision > recall
+    # https://en.wikipedia.org/wiki/F-score
+
     valid_spot_confidence_lower_bound: float = 0.25
     valid_spot_confidence_upper_bound: float = 0.75
     valid_spot_exp_val_threshold: float = 1000
