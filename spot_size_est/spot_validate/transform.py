@@ -1,6 +1,6 @@
 import random
 
-from typing import Tuple, NamedTuple
+from typing import Tuple, NamedTuple, Union
 
 from torch import Tensor
 from torchvision.transforms import functional as TF
@@ -54,7 +54,8 @@ class RandomResizedCropROI:
         self.output_len = output_len
         return
 
-    def crop_by_roi(self, img: Tensor, mask: Tensor, roi: ROI) -> Tuple[Tensor, Tensor]:
+    def crop_by_roi(self, img: Tensor, mask: Union[Tensor, None], roi: ROI
+    ) -> Tuple[Tensor, Tensor]:
 
         # get the scale
         ratio = random.random() * (self.scale[1] - self.scale[0]) + self.scale[0]
@@ -75,6 +76,8 @@ class RandomResizedCropROI:
         top, left = max(0, top), max(0, left)
 
         img = TF.crop(img, top, left, new_len, new_len)
+        # print(f'roi: {roi}')
+        # print(f'new_len = {new_len}, top = {top}, left = {left}')
         if mask is not None:
             mask = TF.crop(mask, top, left, new_len, new_len)
 

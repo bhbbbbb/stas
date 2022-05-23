@@ -28,3 +28,29 @@ class NfnetConfig(ModelUtilsConfig):
     clipping = 0.1         # Adaptive gradient clipping parameter
 
     epochs_per_checkpoint: int = 0
+    
+    log_dir: str = 'log'
+    """dir for saving checkpoints and log files"""
+
+    logging: bool = True
+    """whether log to log.log. It's useful to turn this off when inference"""
+
+    epochs_per_eval: int = 1
+    """Number of epochs per evalution"""
+
+    early_stopping: bool = False
+    """whether enable early stopping"""
+
+    early_stopping_threshold: int = 100
+    """Threshold for early stopping mode. Only matter when EARLY_STOPPING is set to True."""
+
+    show_progress_bar: bool = True
+    save_best = False
+
+
+    device = 'cuda:0'
+
+    valid_spot_confidence_lower_bound: float = 0.25
+    valid_spot_confidence_upper_bound: float = 0.75
+    valid_spot_exp_val_threshold: float = 1000
+    # see NfnetModelUtils.validate_roi

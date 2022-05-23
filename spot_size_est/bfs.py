@@ -1,4 +1,4 @@
-from multiprocessing import Process
+# from multiprocessing import Process
 from argparse import Namespace
 from typing import Tuple, NamedTuple, List, Union
 from collections import deque
@@ -111,20 +111,20 @@ class Spot(Namespace):
 
 NOT_FOUND_WHITE_SPOT = Spot(1, 0, Pos(-1, -1))
 
-class ParallelBFS:
-    def __init__(self, masks: Union[np.ndarray, Tensor]):
+# class ParallelBFS:
+#     def __init__(self, masks: Union[np.ndarray, Tensor]):
 
-        self.bfses = [BFS(mask) for mask in masks]
-        return
+#         self.bfses = [BFS(mask) for mask in masks]
+#         return
     
-    def do(self, func, args: Tuple):
-        func_name = getattr(func, '__name__')
-        p_list = [Process(target=getattr(bfs, func_name), args=args) for bfs in self.bfses]
-        for p in p_list:
-            p.start()
-        for p in p_list:
-            p.join()
-        return
+#     def do(self, func, args: Tuple):
+#         func_name = getattr(func, '__name__')
+#         p_list = [Process(target=getattr(bfs, func_name), args=args) for bfs in self.bfses]
+#         for p in p_list:
+#             p.start()
+#         for p in p_list:
+#             p.join()
+#         return
     
 
 class BFS:
@@ -201,7 +201,7 @@ class BFS:
         max_edge_len: int,
         fill_white: bool = False,
         require_roi_spot_mask: bool = False,
-    ):
+    ) -> Union[Tuple[List[dict], List[np.ndarray]], List[dict]]:
         h, w = self.mask.shape
         self._fill_noise(C.BLACK, self.black_fill_threshold, False)
         

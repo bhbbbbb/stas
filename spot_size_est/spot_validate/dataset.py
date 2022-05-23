@@ -1,15 +1,15 @@
 import math
 import os
 import json
-from typing import Dict
+from typing import Dict, List
 try:
     from typing import Literal
 except ImportError:
     from typing_extensions import Literal
 
-# import torch 
+import torch 
 # from torch import Tensor
-from torch.utils.data import DataLoader, IterableDataset, get_worker_info
+from torch.utils.data import DataLoader, IterableDataset, get_worker_info, Dataset
 from torchvision import io
 # from torchvision.transforms import functional as TF
 
@@ -39,6 +39,7 @@ class DatasetConfig(BaseConfig):
     pin_memory: bool
     small_spot_threshold: int = 200
     nf_variant: str
+    nf_batch_size_inf: int
 
     @property
     def persistent_workers(self):
@@ -63,6 +64,43 @@ def get_files(config: DatasetConfig, mode: str):
         return do(config.TRAIN_SPLIT)
     
     return do(config.VALID_SPLIT)
+
+
+class SingleImageSpotDataset(Dataset):
+    """For inference only"""
+
+    def __init__(
+        self,
+        img_path: str,
+        rois: List[ROI],
+        config: DatasetConfig,
+    ):
+        self.img = io.read_image(img_path)
+        h, w = self.img.shape[-2:]
+        dummy_mask = torch.zeros([1, h, w])
+        self.img, _ = VALID_TRANSFORM(self.img, dummy_mask)
+        self.cropper = RandomResizedCropROI((1.0, 1.0))
+        self.rois = rois
+        self.config = config
+        # print(f'Found {len(rois)} rois.')
+        return
+    
+    def __len__(self):
+        return len(self.rois)
+    
+    def __getitem__(self, index: int):
+        roi = self.rois[index]
+        img, _ = self.cropper.crop_by_roi(self.img, None, roi)
+        return img, roi.size, index
+
+    @property
+    def dataloader(self):
+        return DataLoader(
+            self,
+            batch_size=self.config.nf_batch_size_inf,
+            num_workers=0,
+            pin_memory=self.config.pin_memory,
+        )
 
 
 class SpotDataset(IterableDataset):
@@ -118,8 +156,8 @@ class SpotDataset(IterableDataset):
             end = min(len(self.imgs), end)
 
         for idx in indices[start:end]:
-            for img, label in self.get_item(idx):
-                yield img, int(label)
+            for img, num_white in self.get_item(idx):
+                yield img, num_white
     
     def get_item(self, index: int):
         img_path = self.imgs[index]
@@ -139,7 +177,7 @@ class SpotDataset(IterableDataset):
             num_white = cropped_mask.sum().item()
             if 0 < num_white < self.config.small_spot_threshold:
                 continue
-            yield cropped_img, bool(num_white)
+            yield cropped_img, num_white
 
     @property
     def dataloader(self):

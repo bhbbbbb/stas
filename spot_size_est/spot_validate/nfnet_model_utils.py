@@ -1,3 +1,4 @@
+from typing import List, Tuple, Union
 import torch
 from torch import Tensor
 from torch import nn
@@ -8,24 +9,56 @@ from tqdm import tqdm
 from model_utils import BaseModelUtils, Criteria, Loss as BaseLoss, Accuarcy as BaseAcc
 from nfnets import SGD_AGC, pretrained_nfnet, NFNet # pylint: disable=import-error
 
-from .dataset import SpotDataset
+from .dataset import SpotDataset, SingleImageSpotDataset
 from .model import MyNfnet
 from .config import NfnetConfig
+from .transform import ROI #, RandomResizedCropROI, VALID_TRANSFORM
+from .metrics import Metrics
 
 Loss = Criteria.register_criterion(
     short_name="nf_loss",
     plot=True,
-    primary=False
+    primary=False,
 )(BaseLoss)
 
 Accuracy = Criteria.register_criterion(
     short_name="nf_acc",
     plot=True,
-    primary=True
+    primary=False,
+)(BaseAcc)
+
+# call black but white
+FPVal = Criteria.register_criterion(
+    short_name="nf_expected_fp",
+    full_name="E(FP)",
+    plot=True,
+    primary=False,
+)(BaseLoss)
+
+Precision = Criteria.register_criterion(
+    short_name="precision",
+    full_name="Precision",
+    plot=False,
+    primary=False,
+)(BaseAcc)
+
+Recall = Criteria.register_criterion(
+    short_name="recall",
+    full_name="Recall",
+    plot=False,
+    primary=False,
+)(BaseAcc)
+
+F1Score = Criteria.register_criterion(
+    short_name="nf_f1",
+    full_name="F1",
+    plot=False,
+    primary=True,
 )(BaseAcc)
 
 
 class NfnetModelUtils(BaseModelUtils):
+    config: NfnetConfig
 
     def __init__(
         self,
@@ -108,13 +141,14 @@ class NfnetModelUtils(BaseModelUtils):
         # is_nan = False
         step = 0
         pbar = tqdm(train_dataset.dataloader)
-        for inputs, targets in pbar:
+        for inputs, num_white in pbar:
             step += 1
 
             inputs: Tensor = inputs.half().to(self.config.device)\
                 if self.config["use_fp16"] else inputs.to(self.config.device)
             
-            targets: Tensor = targets.to(self.config.device)
+            num_white: Tensor = num_white.to(self.config.device)
+            targets: Tensor = (num_white > 0).to(torch.long)
 
             self.optimizer.zero_grad()
 
@@ -147,68 +181,82 @@ class NfnetModelUtils(BaseModelUtils):
 
         correct_labels = 0
         eval_loss = 0.0
+        fp_val = 0.0
         step = 0
-        for inputs, targets in tqdm(eval_dataset.dataloader):
+        metrics = Metrics(0)
+
+        for inputs, num_white in tqdm(eval_dataset.dataloader):
             step += 1
             inputs: Tensor = inputs.to(self.config.device)
-            targets: Tensor = targets.to(self.config.device)
+            num_white: Tensor = num_white.to(self.config.device)
+            targets: Tensor = (num_white > 0).to(torch.long)
 
-            output = self.model(inputs).type(torch.float32)
+            output: Tensor = self.model(inputs).type(torch.float32)
+            output = output.softmax(dim=1)
+
+            metrics.update(output, targets)
 
             loss: Tensor = self.criterion.forward(output, targets)
             eval_loss += loss.item()
             _, predicted = torch.max(output, 1)
+            fp_val += (output[:, 1] * num_white).sum().item()
             correct_labels += (predicted == targets).sum().item()
 
         eval_loss = eval_loss / step
         eval_acc = correct_labels / (step * eval_dataset.config.batch_size["val"])
+        fp_val /= (step * eval_dataset.config.batch_size["val"])
         return Criteria(
             Loss(eval_loss),
-            Accuracy(eval_acc)
+            Accuracy(eval_acc),
+            Precision(metrics.precision),
+            Recall(metrics.recall),
+            F1Score(metrics.f1),
+            FPVal(fp_val),
         )
 
-    # def inference(self, dataset: SpotDataset, categories: list = None, confidence: bool = True):
-    #     """inference for the given test dataset
+    @torch.inference_mode()
+    def validate_roi(
+        self, img_path: str, rois: List[ROI], record_exp_val: bool = False
+    ) -> Tuple[List[bool], Union[List[float], None]]:
+        """validate givien roi in rois
 
-    #     Args:
-    #         confidence (boolean): whether output the `confidence` column. Default to True.
+        Args:
+            img_path (str): path to an image
+            rois (List[ROI]): rois
         
-    #     Returns:
-    #         df (pd.DataFrame): {"label": [...], "confidence"?: [...]}
-    #     """
+        Returns:
+            to_rm_spots (List[bool]): indices of rois which failed validation.
+                (i.e. spots to be remove)
+        """
+        self.model.eval()
+        ds = SingleImageSpotDataset(img_path, rois, self.config)
+        num_roi = len(rois)
+        to_rm_spots: Tensor = torch.empty([num_roi], dtype=bool)
+        if record_exp_val:
+            expected_val: Tensor = torch.empty([num_roi], dtype=torch.float32) ## debugging
+        else:
+            expected_val = None
 
-    #     categories = categories if categories is not None else list(range(self.config.num_classes))
+        for img, roi_size, indices in ds.dataloader:
+            img: Tensor
+            roi_size: Tensor
+            img = img.to(self.config.device)
+
+            preds: Tensor = self.model(img)
+            white_confidence = preds.softmax(dim=1)[:, 1].cpu().to(torch.float32)
+
+            passed_spots = white_confidence > self.config.valid_spot_confidence_upper_bound
+            failed_spots = white_confidence < self.config.valid_spot_confidence_lower_bound
+            expected_fp = roi_size * white_confidence
+            spot_to_rm = expected_fp < self.config.valid_spot_exp_val_threshold
+            to_rm_spots[indices] = spot_to_rm
+            to_rm_spots[indices][failed_spots] = True
+            to_rm_spots[indices][passed_spots] = False
+            if record_exp_val:
+                expected_val[indices] = expected_fp
+            # E(False Positive) = roi_size * P(spot_category = white)
+            # if E(FP) < threshold, then remove this spot
+            # else keep it
+        return to_rm_spots.tolist(), expected_val.tolist()
         
-    #     def mapping(x):
-    #         return categories[x]
-
-    #     label_col = np.empty(len(dataset), dtype=type(categories[0]))
-    #     if confidence:
-    #         confidence_col = np.empty(len(dataset), dtype=float)
-    #         data = {"label": label_col, "confidence": confidence_col}
-        
-    #     else:
-    #         data = {"label": label_col}
-        
-    #     df = pd.DataFrame(data)
-        
-    #     with torch.inference_mode():
-    #         for data, indexes in tqdm(dataset.dataloader):
-    #             data: Tensor
-    #             indexes: Tensor
-    #             data = data.to(self.config.device)
-    #             output: Tensor = self.model(data)
-
-    #             output = F.softmax(output, dim=1)
-
-    #             confidences, indices = output.max(dim=1)
-
-    #             labels = list(map(mapping, indices.tolist()))
-                
-    #             indexes = indexes.tolist()
-
-    #             df.loc[indexes, "label"] = labels
-    #             if confidence:
-    #                 df.loc[indexes, "confidence"] = confidences.tolist()
-        
-    #     return df
+    
