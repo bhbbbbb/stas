@@ -6,9 +6,9 @@ from typing import List, Dict
 from tqdm import tqdm
 import torch
 from torchvision import io
-from spot_size_est.bfs import BFS #, ParallelBFS
-from spot_size_est.spot_validate.nfnet_model_utils import NfnetModelUtils, NfnetConfig, ROI
-from spot_size_est.spot_validate.dataset import DatasetConfig
+from spot_validate.bfs import BFS #, ParallelBFS
+from spot_validate.nfnet_model_utils import NfnetModelUtils, NfnetConfig, ROI
+from spot_validate.dataset import DatasetConfig
 
 ROI_EDGE_LEN = 192 # F0
 # ROI_EDGE_LEN = 224 # F1

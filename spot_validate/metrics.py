@@ -64,4 +64,3 @@ class Metrics:
     #     acc *= 100
     #     macc *= 100
     #     return acc.cpu().numpy().round(2).tolist(), round(macc, 2)
-

@@ -14,7 +14,7 @@ from semseg.metrics import Metrics
 # from semseg.losses import get_loss
 from semseg.schedulers import get_scheduler
 from semseg.optimizers import get_optimizer
-from spot_size_est.bfs import BFS
+from spot_validate.bfs import BFS
 from .config import Config
 from .criteria import (
     Loss,

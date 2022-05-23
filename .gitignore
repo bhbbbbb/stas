@@ -15,3 +15,6 @@ do.py
 *.config.*.py
 
 rois*
+
+*.json
+doo.py

@@ -10,13 +10,10 @@ from stas.config import Config as StasConfig
 from stas.stas_dataset import StasDataset # , get_labels_ratio
 from stas.stas_model_utils import StasModelUtils
 
-from spot_size_est.spot_est_dataset import SpotEstDataset, SpotEstDatasetConfig
-from spot_size_est.model import SpotEst
-from spot_size_est.spot_est_model_utils import SpotEstModelUtils, SpotEstConfig
 
-from spot_size_est.spot_validate.model import MyNfnet
-from spot_size_est.spot_validate.nfnet_model_utils import NfnetModelUtils, NfnetConfig
-from spot_size_est.spot_validate.dataset import SpotDataset, DatasetConfig as SpotDatasetConfig
+from spot_validate.model import MyNfnet
+from spot_validate.nfnet_model_utils import NfnetModelUtils, NfnetConfig
+from spot_validate.dataset import SpotDataset, DatasetConfig as SpotDatasetConfig
 
 try:
     from .inference import inference, inference_by_valid
@@ -26,7 +23,7 @@ except ImportError:
 
 
 
-class Config(SpotEstDatasetConfig, SpotEstConfig, SpotDatasetConfig, NfnetConfig):
+class Config(StasConfig, SpotDatasetConfig, NfnetConfig):
     DATASET_ROOT: str = os.path.join(__file__, '..', '..', '..', 'SEG_Train_Datasets')
     IMGS_ROOT: str = os.path.join(DATASET_ROOT, 'Train_Images')
     MASK_ROOT: str = os.path.join(DATASET_ROOT, 'Train_Masks')
