@@ -216,7 +216,7 @@ class NfnetModelUtils(BaseModelUtils):
 
     @torch.inference_mode()
     def validate_roi(
-        self, img_path: str, rois: List[ROI], record_exp_val: bool = False
+        self, img_path: str, rois: List[ROI], roi_masks: List[Tensor], record_exp_val: bool = False
     ) -> Tuple[List[bool], Union[List[float], None]]:
         """validate givien roi in rois
 
@@ -229,7 +229,7 @@ class NfnetModelUtils(BaseModelUtils):
                 (i.e. spots to be remove)
         """
         self.model.eval()
-        ds = SingleImageSpotDataset(img_path, rois, self.config)
+        ds = SingleImageSpotDataset(img_path, rois, roi_masks, self.config)
         num_roi = len(rois)
         to_rm_spots: Tensor = torch.empty([num_roi], dtype=bool)
         if record_exp_val:

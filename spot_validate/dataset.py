@@ -8,7 +8,7 @@ except ImportError:
     from typing_extensions import Literal
 
 import torch 
-# from torch import Tensor
+from torch import Tensor
 from torch.utils.data import DataLoader, IterableDataset, get_worker_info, Dataset
 from torchvision import io
 # from torchvision.transforms import functional as TF
@@ -73,6 +73,7 @@ class SingleImageSpotDataset(Dataset):
         self,
         img_path: str,
         rois: List[ROI],
+        roi_masks: List[Tensor],
         config: DatasetConfig,
     ):
         self.img = io.read_image(img_path)
@@ -81,6 +82,7 @@ class SingleImageSpotDataset(Dataset):
         self.img, _ = VALID_TRANSFORM(self.img, dummy_mask)
         self.cropper = RandomResizedCropROI((1.0, 1.0))
         self.rois = rois
+        self.roi_masks = roi_masks
         self.config = config
         # print(f'Found {len(rois)} rois.')
         return
@@ -90,7 +92,8 @@ class SingleImageSpotDataset(Dataset):
     
     def __getitem__(self, index: int):
         roi = self.rois[index]
-        img, _ = self.cropper.crop_by_roi(self.img, None, roi)
+        r_mask = self.roi_masks[index]
+        img = self.cropper.crop_by_roi_mask(self.img, r_mask, roi)
         return img, roi.size, index
 
     @property
