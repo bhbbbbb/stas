@@ -1,6 +1,7 @@
 import os
 import json
-import numpy as np
+from typing import Dict, List
+# import numpy as np
 from tqdm import tqdm
 from model_utils import BaseModelUtils
 from torch.cuda.amp import GradScaler, autocast
@@ -196,16 +197,16 @@ class StasModelUtils(BaseModelUtils):
                 return
 
     @torch.inference_mode()
-    def generate_rois(self):
+    def generate_rois(self, out_dir: str = 'rois', output_checkpoint: bool = False):
         self.model.eval()
 
         inf_set = StasDataset(self.config, 'inference', test_dir=self.config.IMGS_ROOT)
         # inf_set.files = [inf_set.files[142]]
         # inf_set.names = [inf_set.names[142]]
-        rois: np.ndarray = np.empty([len(inf_set)], dtype=list)
+        # rois: np.ndarray = np.empty([len(inf_set)], dtype=list)
+        rois: Dict[str, List[dict]] = {}
         print('len of rios', len(rois))
-        OUT_DIR = 'rois'
-        os.makedirs(OUT_DIR, exist_ok=True)
+        os.makedirs(out_dir, exist_ok=True)
 
 
         pbar = tqdm(inf_set.dataloader, disable=(not self.config.show_progress_bar))
@@ -223,16 +224,14 @@ class StasModelUtils(BaseModelUtils):
             )
             preds = preds.cpu()
             bfs = BFS(preds)
-            tem = bfs.get_rois(self.config.max_roi_edge_len)
-            with open(os.path.join(OUT_DIR, name + '.json'), 'w', encoding='utf-8') as fout:
-                json.dump(tem, fout, indent=4)
+            tem, _ = bfs.get_rois(self.config.max_roi_edge_len)
+            if output_checkpoint:
+                with open(os.path.join(out_dir, name + '.json'), 'w', encoding='utf-8') as fout:
+                    json.dump(tem, fout, indent=4)
 
-            rois[int(name)] = tem
+            rois[name] = tem
         
-        rois = rois.tolist()
-        with open('rois.json', 'w', encoding='utf-8') as fout:
+        # rois = rois.tolist()
+        with open(os.path.join(out_dir, 'rois.json'), 'w', encoding='utf-8') as fout:
             json.dump(rois, fout, indent=4)
         return
-
-
-                

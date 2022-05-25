@@ -11,7 +11,14 @@ from torch import Tensor
 from torch.utils.data import Dataset, DataLoader
 from torchvision import io
 from torchvision.transforms import functional as TF
-from semseg.augmentations import get_train_augmentation, get_val_augmentation
+from semseg.augmentations import get_val_augmentation
+from semseg.augmentations import (
+    Compose,
+    RandomResizedCrop,
+    RandomHorizontalFlip,
+    RandomVerticalFlip,
+    Normalize,
+)
 from model_utils.base import BaseConfig
 from tqdm import tqdm
 
@@ -72,7 +79,23 @@ class StasDataset(Dataset):
         
         if transform is None:
             if split == M.TRAIN:
-                self.transform = get_train_augmentation(config.train_size)
+                mid_scale = config.inf_size[0] / config.train_size[0]
+                self.transform = Compose([
+                    # ColorJitter(brightness=0.0, contrast=0.5, saturation=0.5, hue=0.5),
+                    # RandomAdjustSharpness(sharpness_factor=0.1, p=0.5),
+                    # RandomAutoContrast(p=0.2),
+                    RandomHorizontalFlip(p=0.5),
+                    RandomVerticalFlip(p=0.5),
+                    # RandomGaussianBlur((3, 3), p=0.5),
+                    # RandomGrayscale(p=0.5),
+                    # RandomRotation(degrees=10, p=0.3, seg_fill=seg_fill),
+                    RandomResizedCrop(
+                        config.train_size,
+                        scale=(mid_scale - 0.5, mid_scale + 0.5),
+                        seg_fill=0,
+                    ),
+                    Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+                ])
             else:
                 self.transform = get_val_augmentation(
                     config.val_size if split == M.VALID else config.inf_size
