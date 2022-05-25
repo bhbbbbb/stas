@@ -1,7 +1,10 @@
 **/log
 
-*.csv
 *.egg-info
+*.csv
+*.json
+*.jpg
+*.png
 
 **/.vscode
 
@@ -16,5 +19,4 @@ do.py
 
 rois*
 
-*.json
 doo.py

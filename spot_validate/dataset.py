@@ -124,7 +124,7 @@ class SpotDataset(IterableDataset):
         self.config = config
         self.transform = transform
         self.roi_transform = RandomResizedCropROI(
-            (0.8, 2.5) if M.TRAIN else (1.0, 1.0), LEN[self.config.nf_variant]
+            (0.5, 2.0) if M.TRAIN else (1.0, 1.0), LEN[self.config.nf_variant]
         )
         
         if transform is None:
@@ -187,6 +187,6 @@ class SpotDataset(IterableDataset):
             batch_size=batch_size,
             num_workers=min(self.config.num_workers, batch_size),
             persistent_workers=self.config.persistent_workers,
-            drop_last=True,
+            drop_last=(self.mode == M.TRAIN),
             pin_memory=self.config.pin_memory,
         )

@@ -41,11 +41,19 @@ class ROI(NamedTuple):
     def center(self):
         return (self.x + (self.height // 2), self.y + (self.width // 2))
 
+    @property
+    def bottom(self):
+        return self.x + self.height
+
+    @property
+    def right(self):
+        return self.y + self.width
+
 
 class RandomResizedCropROI:
     def __init__(
         self,
-        scale: Tuple[float, float] = (0.8, 2.0),
+        scale: Tuple[float, float] = (0.5, 2.0),
         output_len: int = 192,
     ) -> None:
         """Resize the input image to the given size.
@@ -54,41 +62,40 @@ class RandomResizedCropROI:
         self.output_len = output_len
         return
 
-    def crop_by_roi(self, img: Tensor, mask: Union[Tensor, None], roi: ROI
+    @staticmethod
+    def to_even(n: int):
+        return n + 1 if n & 1 else n
+    
+    def crop_by_roi(self, img: Union[Tensor, None], mask: Union[Tensor, None], roi: ROI
     ) -> Tuple[Tensor, Tensor]:
 
         # get the scale
-        ratio = random.random() * (self.scale[1] - self.scale[0]) + self.scale[0]
-        # ratio = random.uniform(min(self.scale), max(self.scale))
+        ratio = random.uniform(min(self.scale), max(self.scale))
 
-        # scale the image 
+        new_len = self.to_even(int(self.output_len / ratio))
 
-        longer_edge = max(roi.width, roi.height)
-        new_len = int(longer_edge / ratio)
-        if new_len & 1:
-            new_len += 1
-        half_new_len = new_len // 2
-
+        h = new_len if roi.height > new_len else self.to_even(roi.height)
+        w = new_len if roi.width  > new_len else self.to_even(roi.width)
+        # crop image and mask
         c_x, c_y = roi.center
-        top, left = c_x - half_new_len, c_y - half_new_len
-        top_to_pad = - min(0, top)
-        left_to_pad = - min(0, left)
-        top, left = max(0, top), max(0, left)
+        top, left = c_x - (h // 2), c_y - (w // 2)
+        # bottom, right = c_x + (h // 2), c_y + (w // 2)
 
-        img = TF.crop(img, top, left, new_len, new_len)
-        # print(f'roi: {roi}')
-        # print(f'new_len = {new_len}, top = {top}, left = {left}')
+        if img is not None:
+            # img = img[top: bottom, left: right].detach().clone()
+            img = TF.crop(img, top, left, h, w)
+
+            # pad the image
+            v_pad = (new_len - h) // 2
+            h_pad = (new_len - w) // 2
+            if v_pad + h_pad:
+                padding = [h_pad, v_pad, h_pad, v_pad]
+                img = TF.pad(img, padding, fill=0)
+
+            img = TF.resize(img, (self.output_len, self.output_len), TF.InterpolationMode.BILINEAR)
+        
         if mask is not None:
-            mask = TF.crop(mask, top, left, new_len, new_len)
-
-        # pad the image
-        if top_to_pad + left_to_pad:
-            padding = [0, 0, top_to_pad, left_to_pad]
-            img = TF.pad(img, padding, fill=0)
-            # if mask is not None:
-            #     mask = TF.pad(mask, padding, fill=0)
-        img = TF.resize(img, (self.output_len, self.output_len), TF.InterpolationMode.BILINEAR)
-        # if mask is not None:
-        #     mask = TF.resize(mask, (LEN, LEN), TF.InterpolationMode.NEAREST)
+            # mask = mask[top: bottom, left: right].detach().clone()
+            mask = TF.crop(mask, top, left, h, w)
 
         return img, mask

@@ -52,7 +52,7 @@ Recall = Criteria.register_criterion(
 FScore = Criteria.register_criterion(
     short_name="nf_f_beta",
     full_name="F_beta",
-    plot=False,
+    plot=True,
     primary=True,
 )(BaseAcc)
 
@@ -250,8 +250,8 @@ class NfnetModelUtils(BaseModelUtils):
             expected_fp = roi_size * white_confidence
             spot_to_rm = expected_fp < self.config.valid_spot_exp_val_threshold
             to_rm_spots[indices] = spot_to_rm
-            to_rm_spots[indices][failed_spots] = True
-            to_rm_spots[indices][passed_spots] = False
+            to_rm_spots[indices[failed_spots]] = True
+            to_rm_spots[indices[passed_spots]] = False
             if record_exp_val:
                 expected_val[indices] = expected_fp
             # E(False Positive) = roi_size * P(spot_category = white)
