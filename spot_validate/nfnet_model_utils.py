@@ -6,7 +6,7 @@ from torch.cuda import amp
 
 from tqdm import tqdm
 
-from model_utils import BaseModelUtils, Criteria, Loss as BaseLoss, Accuarcy as BaseAcc
+from model_utils import BaseModelUtils, Criteria
 from nfnets import SGD_AGC, pretrained_nfnet, NFNet # pylint: disable=import-error
 
 from .dataset import SpotDataset, SingleImageSpotDataset
@@ -14,47 +14,14 @@ from .model import MyNfnet
 from .config import NfnetConfig
 from .transform import ROI #, RandomResizedCropROI, VALID_TRANSFORM
 from .metrics import Metrics
-
-Loss = Criteria.register_criterion(
-    short_name="nf_loss",
-    plot=True,
-    primary=False,
-)(BaseLoss)
-
-Accuracy = Criteria.register_criterion(
-    short_name="nf_acc",
-    plot=True,
-    primary=False,
-)(BaseAcc)
-
-# call black but white
-FPVal = Criteria.register_criterion(
-    short_name="nf_expected_fp",
-    full_name="E(FP)",
-    plot=True,
-    primary=False,
-)(BaseLoss)
-
-Precision = Criteria.register_criterion(
-    short_name="precision",
-    full_name="Precision",
-    plot=False,
-    primary=False,
-)(BaseAcc)
-
-Recall = Criteria.register_criterion(
-    short_name="recall",
-    full_name="Recall",
-    plot=False,
-    primary=False,
-)(BaseAcc)
-
-FScore = Criteria.register_criterion(
-    short_name="nf_f_beta",
-    full_name="F_beta",
-    plot=True,
-    primary=True,
-)(BaseAcc)
+from .criteria import (
+    Loss,
+    Accuracy,
+    Precision,
+    Recall,
+    FScore,
+    FPVal,
+)
 
 
 class NfnetModelUtils(BaseModelUtils):
@@ -72,7 +39,8 @@ class NfnetModelUtils(BaseModelUtils):
         logger,
     ):
         self.scaler = amp.GradScaler()
-        self.criterion = nn.CrossEntropyLoss()
+        cls_weights = Tensor(config.nf_cls_weight).to(config.device)
+        self.criterion = nn.CrossEntropyLoss(weight=cls_weights)
         super().__init__(
             model,
             config,
@@ -140,7 +108,7 @@ class NfnetModelUtils(BaseModelUtils):
         correct_labels = 0
         # is_nan = False
         step = 0
-        pbar = tqdm(train_dataset.dataloader)
+        pbar = tqdm(train_dataset.dataloader, total=self.config.nf_iters_per_epoch)
         for inputs, num_white in pbar:
             step += 1
 
@@ -165,8 +133,13 @@ class NfnetModelUtils(BaseModelUtils):
             running_loss += loss.item()
             _, predicted = torch.max(output, 1)
             correct = (predicted == targets).sum().item()
+            white_correct = ((predicted == 1) & (targets == 1)).sum().item()
+            black_correct = ((predicted == 0) & (targets == 0)).sum().item()
             correct_labels += correct
-            pbar.set_description(f"L: {loss.item():.2e}| #C: {correct:2d}")
+            pbar.set_description(
+                f"L: {loss.item():.2e}| #C: {correct:2d}| WC: {white_correct}| BC: {black_correct}")
+            if step >= pbar.total:
+                break
 
         running_loss = running_loss / step
         train_acc = correct_labels / (step * train_dataset.config.batch_size["train"])
@@ -216,7 +189,7 @@ class NfnetModelUtils(BaseModelUtils):
 
     @torch.inference_mode()
     def validate_roi(
-        self, img_path: str, rois: List[ROI], roi_masks: List[Tensor], record_exp_val: bool = False
+        self, img_path: str, rois: List[ROI], record_exp_val: bool = False
     ) -> Tuple[List[bool], Union[List[float], None]]:
         """validate givien roi in rois
 
@@ -229,7 +202,7 @@ class NfnetModelUtils(BaseModelUtils):
                 (i.e. spots to be remove)
         """
         self.model.eval()
-        ds = SingleImageSpotDataset(img_path, rois, roi_masks, self.config)
+        ds = SingleImageSpotDataset(img_path, rois, self.config)
         num_roi = len(rois)
         to_rm_spots: Tensor = torch.empty([num_roi], dtype=bool)
         if record_exp_val:
@@ -257,6 +230,6 @@ class NfnetModelUtils(BaseModelUtils):
             # E(False Positive) = roi_size * P(spot_category = white)
             # if E(FP) < threshold, then remove this spot
             # else keep it
-        return to_rm_spots.tolist(), expected_val.tolist()
+        return to_rm_spots.tolist(), expected_val.tolist() if record_exp_val else None
         
     

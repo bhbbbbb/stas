@@ -7,15 +7,15 @@ from torchvision.transforms import functional as TF
 
 from semseg.augmentations import (
     Compose,
-    RandomHorizontalFlip,
-    RandomVerticalFlip,
+    # RandomHorizontalFlip,
+    # RandomVerticalFlip,
     Normalize
 )
 
 
 TRAIN_TRANSFORM = Compose([
-        RandomHorizontalFlip(p=0.5),
-        RandomVerticalFlip(p=0.5),
+        # RandomHorizontalFlip(p=0.5),
+        # RandomVerticalFlip(p=0.5),
         # RandomGaussianBlur((3, 3), p=0.5),
         # RandomGrayscale(p=0.5),
         # RandomRotation(degrees=10, p=0.3, seg_fill=seg_fill),
@@ -50,7 +50,7 @@ class ROI(NamedTuple):
         return self.y + self.width
 
 
-class RandomResizedCropROI:
+class Cropper:
     def __init__(
         self,
         scale: Tuple[float, float] = (0.5, 2.0),
@@ -66,10 +66,29 @@ class RandomResizedCropROI:
     def to_even(n: int):
         return n + 1 if n & 1 else n
     
-    def crop_by_roi_mask(self, img: Tensor, roi_mask: Tensor, roi: ROI
-    ) -> Tensor:
-        img_ = img * roi_mask
-        return self.crop_by_roi(img_, None, roi)[0]
+
+    def crop_fix_by_roi(
+        self, img: Union[Tensor, None], mask: Union[Tensor, None], roi: ROI
+    ) -> Tuple[Tensor, Tensor]:
+        if img is not None:
+            img = TF.resized_crop(
+                img,
+                roi.x,
+                roi.y,
+                roi.height,
+                roi.width,
+                (self.output_len, self.output_len)
+            )
+        if mask is not None:
+            mask = TF.crop(
+                mask,
+                roi.x,
+                roi.y,
+                roi.height,
+                roi.width,
+                # (self.output_len, self.output_len)
+            )
+        return img, mask
     
     def crop_by_roi(self, img: Union[Tensor, None], mask: Union[Tensor, None], roi: ROI
     ) -> Tuple[Tensor, Tensor]:

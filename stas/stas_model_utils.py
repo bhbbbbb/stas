@@ -224,7 +224,7 @@ class StasModelUtils(BaseModelUtils):
             )
             preds = preds.cpu()
             bfs = BFS(preds)
-            tem, _ = bfs.get_rois(self.config.max_roi_edge_len)
+            tem = bfs.get_rois(self.config.max_roi_edge_len)
             if output_checkpoint:
                 with open(os.path.join(out_dir, name + '.json'), 'w', encoding='utf-8') as fout:
                     json.dump(tem, fout, indent=4)

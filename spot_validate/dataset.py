@@ -7,8 +7,10 @@ try:
 except ImportError:
     from typing_extensions import Literal
 
+import random
+
 import torch 
-from torch import Tensor
+# from torch import Tensor
 from torch.utils.data import DataLoader, IterableDataset, get_worker_info, Dataset
 from torchvision import io
 # from torchvision.transforms import functional as TF
@@ -19,7 +21,7 @@ from sklearn.utils import shuffle
 from model_utils.base import BaseConfig
 # from tqdm import tqdm
 
-from .transform import RandomResizedCropROI, TRAIN_TRANSFORM, VALID_TRANSFORM, ROI
+from .transform import Cropper, TRAIN_TRANSFORM, VALID_TRANSFORM, ROI
 
 class M:
     """enum"""
@@ -30,7 +32,7 @@ class M:
 class DatasetConfig(BaseConfig):
     IMGS_ROOT: str
     MASK_ROOT: str
-    ROIS_ROOT: str
+    ROIS_JSON_PATH: str
     TRAIN_SPLIT: str
     VALID_SPLIT: str
     batch_size: Dict[str, int]
@@ -40,15 +42,12 @@ class DatasetConfig(BaseConfig):
     small_spot_threshold: int = 200
     nf_variant: str
     nf_batch_size_inf: int
+    train_img_len: int = 100
+    random_drop_black_rate: float = 0.7
 
     @property
     def persistent_workers(self):
         return self.num_workers > 0 and os.name == 'nt'
-
-LEN = {
-    'F0': 192,
-    'F1': 224,
-}
 
 def get_files(config: DatasetConfig, mode: str):
     assert mode in [M.TRAIN, M.VALID]
@@ -58,8 +57,8 @@ def get_files(config: DatasetConfig, mode: str):
             names: list = json.load(fin)
             imgs = [os.path.join(config.IMGS_ROOT, name + '.jpg') for name in names]
             masks = [os.path.join(config.MASK_ROOT, name + '.png') for name in names]
-            rois = [os.path.join(config.ROIS_ROOT, name + '.json') for name in names]
-        return names, imgs, masks, rois
+            # rois = [os.path.join(config.ROIS_ROOT, name + '.json') for name in names]
+        return names, imgs, masks
     if mode == M.TRAIN:
         return do(config.TRAIN_SPLIT)
     
@@ -73,16 +72,15 @@ class SingleImageSpotDataset(Dataset):
         self,
         img_path: str,
         rois: List[ROI],
-        roi_masks: List[Tensor],
         config: DatasetConfig,
     ):
         self.img = io.read_image(img_path)
         h, w = self.img.shape[-2:]
         dummy_mask = torch.zeros([1, h, w])
         self.img, _ = VALID_TRANSFORM(self.img, dummy_mask)
-        self.cropper = RandomResizedCropROI((1.0, 1.0))
+        self.cropper = Cropper((1.0, 1.0), output_len=config.train_img_len)
         self.rois = rois
-        self.roi_masks = roi_masks
+        # self.roi_masks = roi_masks
         self.config = config
         # print(f'Found {len(rois)} rois.')
         return
@@ -92,8 +90,7 @@ class SingleImageSpotDataset(Dataset):
     
     def __getitem__(self, index: int):
         roi = self.rois[index]
-        r_mask = self.roi_masks[index]
-        img = self.cropper.crop_by_roi_mask(self.img, r_mask, roi)
+        img, _ = self.cropper.crop_fix_by_roi(self.img, None, roi)
         return img, roi.size, index
 
     @property
@@ -109,10 +106,10 @@ class SingleImageSpotDataset(Dataset):
 class SpotDataset(IterableDataset):
     # pylint: disable=abstract-method
     
-    names: list
-    imgs: list
-    masks: list
-    rois: list
+    names: List[str]
+    imgs: List[str]
+    masks: List[str]
+    rois: List[List[dict]]
 
     def __init__(
         self,
@@ -126,9 +123,7 @@ class SpotDataset(IterableDataset):
         self.mode = mode
         self.config = config
         self.transform = transform
-        self.roi_transform = RandomResizedCropROI(
-            (0.5, 2.0) if M.TRAIN else (1.0, 1.0), LEN[self.config.nf_variant]
-        )
+        self.roi_transform = Cropper(output_len=config.train_img_len)
         
         if transform is None:
             if mode == M.TRAIN:
@@ -136,12 +131,15 @@ class SpotDataset(IterableDataset):
             else:
                 self.transform = VALID_TRANSFORM
 
-        self.names, self.imgs, self.masks, self.rois = get_files(config, mode)
+        self.names, self.imgs, self.masks = get_files(config, mode)
+        with open(config.ROIS_JSON_PATH, 'r', encoding='utf8') as fin:
+            self.rois = json.load(fin)
+
         print(f'Found {len(self.imgs)} {mode} images.')
         return
 
     # def __len__(self) -> int:
-    #     return len(self.imgs)
+    #     return self.config.spot_iters_per_epoch
     
     def __iter__(self):
         worker_info = get_worker_info()
@@ -172,14 +170,19 @@ class SpotDataset(IterableDataset):
         if self.transform:
             image, mask = self.transform(image, mask)
         
-        with open(self.rois[index], 'r', encoding='utf-8') as fin:
-            rois = json.load(fin)
-        for roi in rois:
+        
+        for roi in self.rois[index]:
             roi = ROI(**roi)
-            cropped_img, cropped_mask = self.roi_transform.crop_by_roi(image, mask, roi)
+            cropped_img, cropped_mask = self.roi_transform.crop_fix_by_roi(image, mask, roi)
             num_white = cropped_mask.sum().item()
             if 0 < num_white < self.config.small_spot_threshold:
                 continue
+            if (
+                self.mode == M.TRAIN and num_white == 0
+                and random.random() < self.config.random_drop_black_rate
+            ):
+                continue
+
             yield cropped_img, num_white
 
     @property
