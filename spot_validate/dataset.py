@@ -42,8 +42,11 @@ class DatasetConfig(BaseConfig):
     small_spot_threshold: int = 200
     nf_variant: str
     nf_batch_size_inf: int
-    train_img_len: int = 100
+    train_img_len: int = 192
+    max_roi_len: int = 100
+
     random_drop_black_rate: float = 0.7
+
 
     @property
     def persistent_workers(self):
@@ -78,7 +81,11 @@ class SingleImageSpotDataset(Dataset):
         h, w = self.img.shape[-2:]
         dummy_mask = torch.zeros([1, h, w])
         self.img, _ = VALID_TRANSFORM(self.img, dummy_mask)
-        self.cropper = Cropper((1.0, 1.0), output_len=config.train_img_len)
+        self.cropper = Cropper(
+            (1.0, 1.0),
+            output_len=config.train_img_len,
+            max_roi_len=config.max_roi_len,
+        )
         self.rois = rois
         # self.roi_masks = roi_masks
         self.config = config
@@ -123,7 +130,11 @@ class SpotDataset(IterableDataset):
         self.mode = mode
         self.config = config
         self.transform = transform
-        self.roi_transform = Cropper(output_len=config.train_img_len)
+        self.roi_transform = Cropper(
+            scale=((0.8, 2.0) if mode == M.TRAIN else (1.0, 1.0)),
+            output_len=config.train_img_len,
+            max_roi_len=config.max_roi_len,
+        )
         
         if transform is None:
             if mode == M.TRAIN:
@@ -196,3 +207,57 @@ class SpotDataset(IterableDataset):
             drop_last=(self.mode == M.TRAIN),
             pin_memory=self.config.pin_memory,
         )
+
+
+class RoiSpotDataset(SpotDataset):
+    """for RoiAttentionNFnet"""
+    # pylint: disable=abstract-method
+    
+    names: List[str]
+    imgs: List[str]
+    masks: List[str]
+    rois: List[List[dict]]
+
+    def __iter__(self):
+        worker_info = get_worker_info()
+        start = 0
+        end = len(self.imgs)
+        if self.mode == M.TRAIN:
+            indices = shuffle(range(end))
+        else:
+            indices = range(end)
+        
+        if worker_info is not None:
+            len_per_worker = math.ceil(end // worker_info.num_workers)
+            start = len_per_worker * worker_info.id
+            end = start + len_per_worker
+            end = min(len(self.imgs), end)
+
+        for idx in indices[start:end]:
+            for img, roi in self.get_item(idx):
+                yield img, roi._asdict()
+    
+    def get_item(self, index: int):
+        img_path = self.imgs[index]
+        image = io.read_image(img_path)
+
+        mask_path = self.masks[index]
+        mask = io.read_image(mask_path)
+        
+        if self.transform:
+            image, mask = self.transform(image, mask)
+        
+        
+        for roi in self.rois[index]:
+            roi = ROI(**roi)
+            cropped_img, roi = self.roi_transform.random_scale_crop(image, mask, roi)
+            num_white = roi.size
+            if 0 < num_white < self.config.small_spot_threshold:
+                continue
+            if (
+                self.mode == M.TRAIN and num_white == 0
+                and random.random() < self.config.random_drop_black_rate
+            ):
+                continue
+
+            yield cropped_img, roi

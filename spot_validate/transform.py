@@ -55,17 +55,98 @@ class Cropper:
         self,
         scale: Tuple[float, float] = (0.5, 2.0),
         output_len: int = 192,
+        max_roi_len: int = None,
     ) -> None:
         """Resize the input image to the given size.
         """
         self.scale = scale
         self.output_len = output_len
+        self.max_roi_len = max_roi_len
         return
 
     @staticmethod
     def to_even(n: int):
         return n + 1 if n & 1 else n
     
+
+    def random_scale_crop(
+        self, img: Union[Tensor, None], mask: Union[Tensor, None], roi: ROI
+    ):
+        """crop w.r.t. roi, and leave the not-roi pixel in image.
+
+        Args:
+            img (Union[Tensor, None]): img to crop. to (output_len, output_len)
+            mask (Union[Tensor, None]): mask.
+            roi (ROI): roi.
+
+        """
+
+        o_h, o_w = img.shape[-2:]
+
+        longer_roi_edge = max(roi.height, roi.width)
+        max_scale_ratio = (self.max_roi_len / longer_roi_edge) - 0.05
+
+        # get the scale
+        if min(self.scale) > max_scale_ratio:
+            ratio = max_scale_ratio
+        else:
+            ratio = random.uniform(min(self.scale), min(max(self.scale), max_scale_ratio))
+        
+        new_len = self.to_even(int(self.output_len / ratio))
+        half_new_len = new_len // 2
+
+        # crop image and mask
+        c_x, c_y = roi.center
+        top, left = c_x - half_new_len, c_y - half_new_len
+        bottom, right = c_x + half_new_len, c_y + half_new_len
+
+        roi_x = max(roi.x, top)
+        roi_y = max(roi.y, left)
+        roi_h = min(roi.x + new_len, roi.x + roi.height) - roi_x
+        roi_w = min(roi.y + new_len, roi.y + roi.width) - roi_y
+        roi_x -= top
+        roi_y -= left
+
+        def fix(a):
+            return int(a * ratio)
+
+        roi_x, roi_y, roi_h, roi_w = fix(roi_x), fix(roi_y), fix(roi_h), fix(roi_w)
+
+        top_pad, left_pad, bottom_pad, right_pad = 0, 0, 0, 0
+        if top < 0:
+            top_pad = - top
+            top = 0
+        if left < 0:
+            left_pad = - left
+            left = 0
+        if bottom > o_h: 
+            bottom_pad = bottom - o_h
+            bottom = o_h
+        if right > o_w:
+            right_pad = right - o_w
+            right = o_w
+
+        h, w = bottom - top, right - left
+        if img is not None:
+            img = TF.crop(img, top, left, h, w)
+
+            # pad the image
+            if left_pad + top_pad + bottom_pad + right_pad > 0:
+                padding = [left_pad, top_pad, right_pad, bottom_pad]
+                img = TF.pad(img, padding, fill=0)
+
+            img = TF.resize(img, (self.output_len, self.output_len), TF.InterpolationMode.BILINEAR)
+        
+        if mask is not None:
+            mask = TF.crop(
+                mask,
+                roi.x,
+                roi.y,
+                roi.height,
+                roi.width,
+            )
+
+        return img, ROI(mask.sum().item(), roi_x, roi_y, roi_h, roi_w)
 
     def crop_fix_by_roi(
         self, img: Union[Tensor, None], mask: Union[Tensor, None], roi: ROI
@@ -92,6 +173,7 @@ class Cropper:
     
     def crop_by_roi(self, img: Union[Tensor, None], mask: Union[Tensor, None], roi: ROI
     ) -> Tuple[Tensor, Tensor]:
+        """crop and remove everything except roi pixels"""
 
         # get the scale
         ratio = random.uniform(min(self.scale), max(self.scale))
