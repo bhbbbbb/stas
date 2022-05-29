@@ -33,6 +33,7 @@ class DatasetConfig(BaseConfig):
     IMGS_ROOT: str
     MASK_ROOT: str
     ROIS_JSON_PATH: str
+    # VALID_ROI_JSON_PATH: str
     TRAIN_SPLIT: str
     VALID_SPLIT: str
     batch_size: Dict[str, int]
@@ -110,6 +111,13 @@ class SingleImageSpotDataset(Dataset):
         )
 
 
+class SingleImageRoiSpotDataset(SingleImageSpotDataset):
+    """For inference only"""
+    def __getitem__(self, index: int):
+        roi = self.rois[index]
+        img, roi = self.cropper.random_scale_crop(self.img, None, roi)
+        return img, roi._asdict(), index
+
 class SpotDataset(IterableDataset):
     # pylint: disable=abstract-method
     
@@ -143,6 +151,7 @@ class SpotDataset(IterableDataset):
                 self.transform = VALID_TRANSFORM
 
         self.names, self.imgs, self.masks = get_files(config, mode)
+        
         with open(config.ROIS_JSON_PATH, 'r', encoding='utf8') as fin:
             self.rois = json.load(fin)
 
@@ -182,7 +191,7 @@ class SpotDataset(IterableDataset):
             image, mask = self.transform(image, mask)
         
         
-        for roi in self.rois[index]:
+        for roi in self.rois[int(self.names[index])]:
             roi = ROI(**roi)
             cropped_img, cropped_mask = self.roi_transform.crop_fix_by_roi(image, mask, roi)
             num_white = cropped_mask.sum().item()
@@ -248,7 +257,7 @@ class RoiSpotDataset(SpotDataset):
             image, mask = self.transform(image, mask)
         
         
-        for roi in self.rois[index]:
+        for roi in self.rois[int(self.names[index])]:
             roi = ROI(**roi)
             cropped_img, roi = self.roi_transform.random_scale_crop(image, mask, roi)
             num_white = roi.size
