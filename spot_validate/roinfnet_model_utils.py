@@ -9,7 +9,7 @@ from tqdm import tqdm
 from model_utils import BaseModelUtils, Criteria
 from nfnets import SGD_AGC # pylint: disable=import-error
 
-from .dataset import SpotDataset, SingleImageSpotDataset
+from .dataset import SpotDataset, SingleImageRoiSpotDataset 
 from .model import RoiAttentionNFnet
 from .config import NfnetConfig
 from .transform import ROI #, RandomResizedCropROI, VALID_TRANSFORM
@@ -161,7 +161,7 @@ class RoiNfnetModelUtils(BaseModelUtils):
         step = 0
         metrics = Metrics(0, beta=self.config.f_score_beta)
 
-        for inputs, rois in tqdm(eval_dataset.dataloader):
+        for inputs, rois in tqdm(eval_dataset.dataloader, disable=True):
             rois: dict
             step += 1
             inputs: Tensor = inputs.to(self.config.device)
@@ -181,12 +181,16 @@ class RoiNfnetModelUtils(BaseModelUtils):
             loss: Tensor = self.criterion.forward(output, targets)
             eval_loss += loss.item()
             _, predicted = torch.max(output, 1)
+            print(predicted)
+            print(num_white)
             fp_val += (output[:, 1] * num_white).sum().item()
             correct_labels += (predicted == targets).sum().item()
 
         eval_loss = eval_loss / step
         eval_acc = correct_labels / (step * eval_dataset.config.batch_size["val"])
         fp_val /= (step * eval_dataset.config.batch_size["val"])
+        print(metrics.fp)
+        print(metrics.fn)
         return Criteria(
             Loss(eval_loss),
             Accuracy(eval_acc),
@@ -198,7 +202,7 @@ class RoiNfnetModelUtils(BaseModelUtils):
 
     @torch.inference_mode()
     def validate_roi(
-        self, img_path: str, rois: List[ROI], record_exp_val: bool = False
+        self, img_path: str, rois_: List[ROI], record_exp_val: bool = False
     ) -> Tuple[List[bool], Union[List[float], None]]:
         """validate givien roi in rois
 
@@ -211,25 +215,28 @@ class RoiNfnetModelUtils(BaseModelUtils):
                 (i.e. spots to be remove)
         """
         self.model.eval()
-        ds = SingleImageSpotDataset(img_path, rois, self.config)
-        num_roi = len(rois)
+        ds = SingleImageRoiSpotDataset(img_path, rois_, self.config)
+        num_roi = len(rois_)
         to_rm_spots: Tensor = torch.empty([num_roi], dtype=bool)
         if record_exp_val:
             expected_val: Tensor = torch.empty([num_roi], dtype=torch.float32) ## debugging
         else:
             expected_val = None
 
-        for img, roi_size, indices in ds.dataloader:
+        for img, rois, indices in ds.dataloader:
             img: Tensor
-            roi_size: Tensor
+            rois: dict
             img = img.to(self.config.device)
+            for key, value in rois.items():
+                value: Tensor
+                rois[key] = value.to(self.config.device)
 
-            preds: Tensor = self.model(img)
+            preds: Tensor = self.model(img, rois)
             white_confidence = preds.softmax(dim=1)[:, 1].cpu().to(torch.float32)
 
             passed_spots = white_confidence > self.config.valid_spot_confidence_upper_bound
             failed_spots = white_confidence < self.config.valid_spot_confidence_lower_bound
-            expected_fp = roi_size * white_confidence
+            expected_fp = rois["size"].cpu().to(torch.float32) * white_confidence
             spot_to_rm = expected_fp < self.config.valid_spot_exp_val_threshold
             to_rm_spots[indices] = spot_to_rm
             to_rm_spots[indices[failed_spots]] = True

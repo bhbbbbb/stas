@@ -146,7 +146,8 @@ class Cropper:
                 roi.width,
             )
 
-        return img, ROI(mask.sum().item(), roi_x, roi_y, roi_h, roi_w)
+        size = mask.sum().item() if mask is not None else (roi.size * (ratio ** 2))
+        return img, ROI(size, roi_x, roi_y, roi_h, roi_w)
 
     def crop_fix_by_roi(
         self, img: Union[Tensor, None], mask: Union[Tensor, None], roi: ROI
