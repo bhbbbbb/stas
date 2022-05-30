@@ -201,7 +201,9 @@ class BFS:
         max_edge_len: int,
         fill_white: bool = False,
         require_roi_spot_mask: bool = False,
+        max_size: int = None,
     ) -> Union[Tuple[List[dict], List[np.ndarray]], List[dict]]:
+        max_size = 999999999999999 if max_size is None else max_size
         h, w = self.mask.shape
         self._fill_noise(C.BLACK, self.black_fill_threshold, False)
         
@@ -218,7 +220,7 @@ class BFS:
                         found_saved = np.copy(self.found)
                     spot = self.bfs_find_bound(pos)
                     if (
-                        spot.size > self.MIN_WTHIE_FILL_THRESHOLD
+                        max_size > spot.size > self.MIN_WTHIE_FILL_THRESHOLD
                         and spot.bound.width < max_edge_len
                         and spot.bound.height < max_edge_len
                     ):
