@@ -44,7 +44,11 @@ class DatasetConfig(BaseConfig):
     nf_variant: str
     nf_batch_size_inf: int
     train_img_len: int = 192
-    max_roi_len: int = 100
+    max_roi_len_after_crop: int = 100
+    # max_roi_len: int = 10000
+    # min_roi_len: int = 100
+    max_roi_size: int
+    min_roi_size: int
 
     random_drop_black_rate: float = 0.7
 
@@ -85,7 +89,7 @@ class SingleImageSpotDataset(Dataset):
         self.cropper = Cropper(
             (1.0, 1.0),
             output_len=config.train_img_len,
-            max_roi_len=config.max_roi_len,
+            max_roi_len=config.max_roi_len_after_crop,
         )
         self.rois = rois
         # self.roi_masks = roi_masks
@@ -141,7 +145,7 @@ class SpotDataset(IterableDataset):
         self.roi_transform = Cropper(
             scale=((0.8, 2.0) if mode == M.TRAIN else (1.0, 1.0)),
             output_len=config.train_img_len,
-            max_roi_len=config.max_roi_len,
+            max_roi_len=config.max_roi_len_after_crop,
         )
         
         if transform is None:
@@ -193,6 +197,16 @@ class SpotDataset(IterableDataset):
         
         for roi in self.rois[int(self.names[index])]:
             roi = ROI(**roi)
+            # if (
+            #     (roi.height > self.config.max_roi_len or roi.width > self.config.max_roi_len)
+            #     or
+            #     (roi.height < self.config.min_roi_len or roi.width < self.config.min_roi_len)
+            # ):
+            #     continue
+            if (
+                roi.size > self.config.max_roi_size or roi.size < self.config.min_roi_size
+            ):
+                continue
             cropped_img, cropped_mask = self.roi_transform.crop_fix_by_roi(image, mask, roi)
             num_white = cropped_mask.sum().item()
             if 0 < num_white < self.config.small_spot_threshold:

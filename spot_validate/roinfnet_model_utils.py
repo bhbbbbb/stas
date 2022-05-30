@@ -161,7 +161,7 @@ class RoiNfnetModelUtils(BaseModelUtils):
         step = 0
         metrics = Metrics(0, beta=self.config.f_score_beta)
 
-        for inputs, rois in tqdm(eval_dataset.dataloader, disable=True):
+        for inputs, rois in tqdm(eval_dataset.dataloader):
             rois: dict
             step += 1
             inputs: Tensor = inputs.to(self.config.device)
@@ -181,16 +181,12 @@ class RoiNfnetModelUtils(BaseModelUtils):
             loss: Tensor = self.criterion.forward(output, targets)
             eval_loss += loss.item()
             _, predicted = torch.max(output, 1)
-            print(predicted)
-            print(num_white)
             fp_val += (output[:, 1] * num_white).sum().item()
             correct_labels += (predicted == targets).sum().item()
 
         eval_loss = eval_loss / step
         eval_acc = correct_labels / (step * eval_dataset.config.batch_size["val"])
         fp_val /= (step * eval_dataset.config.batch_size["val"])
-        print(metrics.fp)
-        print(metrics.fn)
         return Criteria(
             Loss(eval_loss),
             Accuracy(eval_acc),
