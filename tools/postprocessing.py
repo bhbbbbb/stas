@@ -16,7 +16,7 @@ from spot_validate.dataset import DatasetConfig
 ROI_EDGE_LEN = 192 # F0
 # ROI_EDGE_LEN = 224 # F1
 MIN_SPOT = 450
-MAX_ROI_SIZE = 2000
+MAX_ROI_SIZE = 10000
 DATASET_ROOT: str = os.path.join(__file__, '..', '..', '..', 'SEG_Train_Datasets')
 GT_MASK_ROOT: str = os.path.join(DATASET_ROOT, 'Train_Masks')
 
@@ -87,7 +87,10 @@ def fix_noise_and_valid_spot(
             fixer: BFS
             name = names[idx]
             rois = [ROI(**roi) for roi in rois]
-            to_rm_spots, exp_vals = utils.validate_roi(img_paths[idx], rois, debugging)
+            print(rois)
+            # to_rm_spots, exp_vals = utils.validate_roi(img_paths[idx], rois, debugging)
+            to_rm_spots = [True, True, False]
+            exp_vals = None
             if debugging:
                 debugging_output[name] = []
                 ground_truth_mask_path = os.path.join(GT_MASK_ROOT, name + '.png')
@@ -173,14 +176,14 @@ def _fix_noise(mask_names: List[str], in_dir: str, out_dir: str, progress_bar: b
         io.write_png(mask, os.path.join(out_dir, mask_name))
     return
 
-if __name__ == '__main__':
-    MASK_DIR = 'D:\\Documents\\PROgram\\ML\\kaggle\\stas-seg\\kaggle_output\\valid_inf'
-    # MASK_DIR = 'D:\\Documents\\PROgram\\ML\\kaggle\\stas-seg\\kaggle_output\\valid_inf_20'
-    IMG_DIR = 'D:\\Documents\\PROgram\\ML\\kaggle\\stas-seg\\SEG_Train_Datasets\\Train_Images'
-    # PATH = 'D:\Documents\PROgram\ML\kaggle\stas-seg\kaggle_output\public_inf'
-    # no fix # 0.853473
-    # 0.1, 0.1 # 0.854387
-    fix_noise(MASK_DIR, num_workers=6) # 0.85417
-    # fix_noise_and_valid_spot(MASK_DIR, IMG_DIR, num_workers=6, debugging=True, num_out=None)
-    # _write_roi_debug_csv()
+# if __name__ == '__main__':
+#     MASK_DIR = 'D:\\Documents\\PROgram\\ML\\kaggle\\stas-seg\\twcc_output\\better_'
+#     # MASK_DIR = 'D:\\Documents\\PROgram\\ML\\kaggle\\stas-seg\\kaggle_output\\valid_inf_20'
+#     IMG_DIR = 'D:\\Documents\\PROgram\\ML\\kaggle\\stas-seg\\SEG_Train_Datasets\\Train_Images'
+#     # PATH = 'D:\Documents\PROgram\ML\kaggle\stas-seg\kaggle_output\public_inf'
+#     # no fix # 0.853473
+#     # 0.1, 0.1 # 0.854387
+#     # fix_noise(MASK_DIR, num_workers=6) # 0.85417
+#     fix_noise_and_valid_spot(MASK_DIR, IMG_DIR, num_workers=1, debugging=False, num_out=None)
+#     # _write_roi_debug_csv()
     

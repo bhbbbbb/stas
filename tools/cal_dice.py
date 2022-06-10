@@ -44,7 +44,7 @@ def cal_dice_score(test_dir: str):
 
     return
 
-if __name__ == '__main__':
-    TEST_DIR = 'D:\\Documents\\PROgram\\ML\\kaggle\\stas-seg\\kaggle_output\\valid_inf'
-    cal_dice_score(TEST_DIR)
+# if __name__ == '__main__':
+#     TEST_DIR = 'D:\\Documents\\PROgram\\ML\\kaggle\\stas-seg\\kaggle_output\\valid_inf_fixed'
+#     cal_dice_score(TEST_DIR)
     

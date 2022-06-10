@@ -41,6 +41,11 @@ python tools/processing.py
 
 - or use `tools.preprocessing.make_mask`
 
+### Postprocessing
+
+- see `tools/postprocessing.py`
+
+
 ## Dependency
 
 - [semantic-segmentation](https://github.com/sithu31296/semantic-segmentation)
